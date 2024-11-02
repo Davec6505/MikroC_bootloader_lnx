@@ -395,18 +395,34 @@ uint8_t *data;
 	bootinfo_t->bSize = *((uint8_t*)buffer+0);
 	memcpy(((uint8_t*)bootinfo_t+1),((uint8_t*)buffer+1),sizeof(TCharField));
 	memcpy(((uint8_t*)bootinfo_t+3),((uint8_t*)buffer+4),sizeof(TULongField));
+	memcpy(((uint8_t*)bootinfo_t+11),((uint8_t*)buffer+12),sizeof(TUIntField));
+	memcpy(((uint8_t*)bootinfo_t+15),((uint8_t*)buffer+16),sizeof(TULongField));
+	memcpy(((uint8_t*)bootinfo_t+19),((uint8_t*)buffer+20),sizeof(TULongField));
+
+	
 	//swap_bytes(((uint8_t*)bootinfo_t+3),sizeof(TULongField)+1)   
 	//data = (uint8_t*)malloc(sizeof(TULongField)+1);
 	//swap_bytes(data,sizeof(TULongField)+1);
 	//memcpy(((uint8_t*)bootinfo_t+3),data,sizeof(TULongField));
 	//free(data);
 
-	printf("%02x\n%02x\t%02x\n%02x\t%08x\n"
+	printf("%02x\n%02x\t%02x\n%02x\t%08x\n%02x\t%04x\n%02x\t%04x\n%02x\t%04x\n%02x\t%08x\n%02x\t%s"
 		,bootinfo_t->bSize
 		,bootinfo_t->bMcuType.fFieldType
 		,bootinfo_t->bMcuType.fValue
 		,bootinfo_t->ulMcuSize.fFieldType
-		,bootinfo_t->ulMcuSize.fValue);
+		,bootinfo_t->ulMcuSize.fValue
+		,bootinfo_t->uiEraseBlock.fFieldType
+		,bootinfo_t->uiEraseBlock.fValue.intVal
+		,bootinfo_t->uiWriteBlock.fFieldType
+		,bootinfo_t->uiWriteBlock.fValue.intVal
+		,bootinfo_t->uiBootRev.fFieldType
+		,bootinfo_t->uiBootRev.fValue.intVal
+		,bootinfo_t->ulBootStart.fFieldType
+		,bootinfo_t->ulBootStart.fValue
+		,bootinfo_t->sDevDsc.fFieldType
+		,bootinfo_t->sDevDsc.fValue);
+
 
      
 
