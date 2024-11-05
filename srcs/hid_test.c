@@ -309,7 +309,7 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 	}
 
 	// Write data to the device.
-
+   
 	result = libusb_interrupt_transfer(
 			devh,
 			INTERRUPT_OUT_ENDPOINT,
@@ -340,10 +340,7 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 		if (result >= 0)
 		{
 			if (bytes_transferred > 0)
-			{
-
-
-                
+			{              
 			  	printf("Data received via interrupt transfer:\n");
 			  	for(i = 0; i < bytes_transferred; i++)
 			  	{
@@ -352,20 +349,10 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 			  	printf("\n");
 
 				TBootInfo bootinfo_t = {0};
-				//memcpy(&bootinfo_t,data_in,sizeof(TBootInfo));
-		        swap_byteofint_buffer(&bootinfo_t,data_in);	
 
-			/*	printf("%2x\n%02x\t%02x\n%2x\t%8x\n%2x\t%4x\n%2x\t%4x\n"
-					,bootinfo_t.bSize
-					,bootinfo_t.bMcuType.fFieldType
-					,bootinfo_t.bMcuType.fValue
-					,bootinfo_t.ulMcuSize.fFieldType
-					,bootinfo_t.ulMcuSize.fValue
-					,bootinfo_t.uiEraseBlock.fFieldType
-					,bootinfo_t.uiEraseBlock.fValue.intVal
-					,bootinfo_t.uiWriteBlock.fFieldType
-					,bootinfo_t.uiWriteBlock.fValue.intVal);
-			*/
+		        bootInfo_buffer(&bootinfo_t,data_in);	
+
+
 			}
 			else
 			{
@@ -389,7 +376,7 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 
 
 
-void swap_byteofint_buffer(void *boot_info,const void *buffer){
+void bootInfo_buffer(void *boot_info,const void *buffer){
 TBootInfo *bootinfo_t = boot_info;
 uint8_t *data;
 	bootinfo_t->bSize = *((uint8_t*)buffer+0);
@@ -398,15 +385,10 @@ uint8_t *data;
 	memcpy(((uint8_t*)bootinfo_t+11),((uint8_t*)buffer+12),sizeof(TUIntField));
 	memcpy(((uint8_t*)bootinfo_t+15),((uint8_t*)buffer+16),sizeof(TULongField));
 	memcpy(((uint8_t*)bootinfo_t+19),((uint8_t*)buffer+20),sizeof(TULongField));
-
+	memcpy(((uint8_t*)bootinfo_t+23),((uint8_t*)buffer+24),sizeof(TULongField));
+	memcpy(((uint8_t*)bootinfo_t+31),((uint8_t*)buffer+32),sizeof(TStringField));
 	
-	//swap_bytes(((uint8_t*)bootinfo_t+3),sizeof(TULongField)+1)   
-	//data = (uint8_t*)malloc(sizeof(TULongField)+1);
-	//swap_bytes(data,sizeof(TULongField)+1);
-	//memcpy(((uint8_t*)bootinfo_t+3),data,sizeof(TULongField));
-	//free(data);
-
-	printf("%02x\n%02x\t%02x\n%02x\t%08x\n%02x\t%04x\n%02x\t%04x\n%02x\t%04x\n%02x\t%08x\n%02x\t%s"
+	printf("\n%02x\n%02x\t%02x\n%02x\t%08x\n%02x\t%04x\n%02x\t%04x\n%02x\t%04x\n%02x\t%08x\n%02x\t%s\n"
 		,bootinfo_t->bSize
 		,bootinfo_t->bMcuType.fFieldType
 		,bootinfo_t->bMcuType.fValue
@@ -422,9 +404,6 @@ uint8_t *data;
 		,bootinfo_t->ulBootStart.fValue
 		,bootinfo_t->sDevDsc.fFieldType
 		,bootinfo_t->sDevDsc.fValue);
-
-
-     
 
 }
 
