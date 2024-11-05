@@ -4,6 +4,33 @@
 #include <stdint.h>
 
 
+// Supported MCU families/types.
+enum TMcuType {mtPIC16 = 1, mtPIC18, mtPIC18FJ, mtPIC24, mtDSPIC = 10, mtPIC32 = 20};
+
+// Bootloader info field ID's.
+enum TBootInfoField {bifMCUTYPE=1,  // MCU type/family.
+                     bifMCUID,      // MCU ID number.
+                     bifERASEBLOCK, // MCU flash erase block size.
+                     bifWRITEBLOCK, // MCU flash write block size.
+                     bifBOOTREV,    // Bootloader revision.
+                     bifBOOTSTART,  // Bootloader start address.
+                     bifDEVDSC,     // Device descriptor string.
+                     bifMCUSIZE     // MCU flash size
+                     };
+
+
+// Suported commands.
+typedef enum  {
+  cmdDONE = -1,            // EXIT loop
+  cmdNON=0,                // 'Idle'.
+  cmdSYNC,                 // Synchronize with PC tool.
+  cmdINFO,                 // Send bootloader info record.
+  cmdBOOT,                 // Go to bootloader mode.
+  cmdREBOOT,               // Restart MCU.
+  cmdWRITE=11,             // Write to MCU flash.
+  cmdERASE=21              // Erase MCU flash.
+  }TCmd;            
+
 
 typedef struct {
   uint8_t bLo;
@@ -52,8 +79,16 @@ typedef struct {
   TStringField sDevDsc;
 } __attribute__((packed))TBootInfo;
 
-
-void swap_byteofint_buffer(void *boot_info,const void *buffer);
+/*
+* To get chip into bootloader mode to usb needs to interrupt transfer a sequence of packets
+* Packet A : send [STX][cmdSYNC]
+* Packet B : send [STX][cmdINFO] 
+* Packet C : send [STX][cmdBOOT]
+* Packet D : send [STX][cmdSYNC]
+* Find the file to send
+*/
+void setupChiptoBoot(struct libusb_device_handle *devh);
+void bootInfo_buffer(void *boot_info,const void *buffer);
 void swap_bytes(uint8_t *bytes,int num);
 
 

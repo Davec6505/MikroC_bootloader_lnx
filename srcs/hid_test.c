@@ -52,8 +52,15 @@ static const int HID_REPORT_TYPE_FEATURE = 0x03;
 static const int MAX_CONTROL_IN_TRANSFER_SIZE = 64;
 static const int MAX_CONTROL_OUT_TRANSFER_SIZE = 64;
 
+#define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
+#define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
+
+
+
 static const int INTERFACE_NUMBER = 0;
 static const int TIMEOUT_MS = 5000;
+
+
 
 int exchange_feature_reports_via_control_transfers(libusb_device_handle *devh);
 int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle *devh);
@@ -114,10 +121,10 @@ int main(void)
 	if (device_ready)
 	{
 		// Send and receive data.
-		exchange_input_and_output_reports_via_interrupt_transfers(devh);
+		//exchange_input_and_output_reports_via_interrupt_transfers(devh);
 		//exchange_input_and_output_reports_via_control_transfers(devh);
 		//exchange_feature_reports_via_control_transfers(devh);
-
+        setupChiptoBoot(devh);
 		// Finished using the device.
 		libusb_release_interface(devh, 0);
 	}
@@ -283,30 +290,19 @@ int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle
 
 int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_handle *devh)
 {
-    
-	// Assumes interrupt endpoint 2 IN and OUT:
-
-	static const int INTERRUPT_IN_ENDPOINT = 0x81;
-	static const int INTERRUPT_OUT_ENDPOINT = 0x01;
+    // Assumes interrupt endpoint 2 IN and OUT:
+    static const int INTERRUPT_IN_ENDPOINT = 0x81;
+    static const int INTERRUPT_OUT_ENDPOINT = 0x01;
 
 	// With firmware support, transfers can be > the endpoint's max packet size.
+	static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
+	static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 
-	static const int MAX_INTERRUPT_IN_TRANSFER_SIZE = 64;
-	static const int MAX_INTERRUPT_OUT_TRANSFER_SIZE = 64;
 
-	int bytes_transferred;
+	int bytes_transferred=0;
 	int i = 0;
-	int result = 0;;
+	int result = 0;
 
- 	char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
-	char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
-
-	// Store data in a buffer for sending.
-    data_out[0] = 0x0f;data_out[1] = 0x02;
-	for (i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
-	{
-		data_out[i]=0x0+i;
-	}
 
 	// Write data to the device.
    
@@ -376,6 +372,159 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 
 
 
+int boot_interrupt_transfers(libusb_device_handle *devh,char *data_in,char *data_out)
+{
+    // Assumes interrupt endpoint 2 IN and OUT:
+    static const int INTERRUPT_IN_ENDPOINT = 0x81;
+    static const int INTERRUPT_OUT_ENDPOINT = 0x01;
+
+	// With firmware support, transfers can be > the endpoint's max packet size.
+
+	int bytes_transferred;
+	int i = 0;
+	int result = 0;;
+
+
+	// Write data to the device.
+   
+	result = libusb_interrupt_transfer(
+			devh,
+			INTERRUPT_OUT_ENDPOINT,
+			data_out,
+			MAX_INTERRUPT_OUT_TRANSFER_SIZE,
+			&bytes_transferred,
+			TIMEOUT_MS);
+
+	if (result >= 0)
+	{
+	  	printf("Data sent via interrupt transfer:\n");
+	  	for(i = 0; i < bytes_transferred; i++)
+	  	{
+	  		printf("%02x ",data_out[i]);
+	  	}
+	  	printf("\n");
+
+		// Read data from the device.
+
+		result = libusb_interrupt_transfer(
+				devh,
+				INTERRUPT_IN_ENDPOINT,
+				data_in,
+				MAX_INTERRUPT_OUT_TRANSFER_SIZE,
+				&bytes_transferred,
+				TIMEOUT_MS);
+
+		if (result >= 0)
+		{
+			if (bytes_transferred > 0)
+			{              
+			  	printf("Data received via interrupt transfer:\n");
+			  	for(i = 0; i < bytes_transferred; i++)
+			  	{
+			  		printf("%02x ",data_in[i]);
+			  	}
+			  	printf("\n");
+			}
+			else
+			{
+				fprintf(stderr, "No data received in interrupt transfer (%d)\n", result);
+				return -1;
+			}
+		}
+		else
+		{
+			fprintf(stderr, "Error receiving data via interrupt transfer %d\n", result);
+			return result;
+		}
+	}
+	else
+	{
+		fprintf(stderr, "Error sending data via interrupt transfer %d\n", result);
+		return result;
+	}
+  	return 0;
+ }
+
+
+/*
+* To get chip into bootloader mode to usb needs to interrupt transfer a sequence of packets
+* Packet A : send [STX][cmdSYNC]
+* Packet B : send [STX][cmdINFO] 
+* Packet C : send [STX][cmdBOOT]
+* Packet D : send [STX][cmdSYNC]
+* Find the file to send
+*/
+
+void setupChiptoBoot(struct libusb_device_handle *devh){
+int result = 0;
+TCmd tcmd_t = cmdINFO;
+TBootInfo bootinfo_t = {0};
+FILE fp;
+char path[250] = {0};  //path to hex file
+
+static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
+static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE]; 
+
+   while(tcmd_t != cmdDONE)
+   {	
+		switch (tcmd_t)
+		{
+			case cmdSYNC:
+
+
+				data_out[0] = 0x0f;data_out[1] = (char)cmdSYNC;
+				tcmd_t = cmdERASE;
+				for (int i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}
+				break;
+			case cmdINFO:
+				data_out[0] = 0x0f;data_out[1] = (char)cmdINFO;
+				for (int i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}
+				tcmd_t = cmdBOOT;
+				break;
+			case cmdBOOT:
+		        bootInfo_buffer(&bootinfo_t,data_in);
+				data_out[0] = 0x0f;data_out[1] = (char)cmdBOOT;
+				for (int i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}
+				tcmd_t = cmdNON;
+				break;
+			case cmdNON:
+				printf("\n\tEntre the path of the hex file...\n");
+				fgets(path,sizeof(path),stdin);
+				size_t len = strlen(path);
+				if(len > 0 && path[len-1] == '\n'){
+					path[len -1] = '\0'; //remove \n
+				}
+				printf("%s\n",path);
+				return;
+				break;
+			default:		    
+				break;
+		}
+		// Send and receive data.
+        if(tcmd_t != cmdNON)
+		{
+			if(boot_interrupt_transfers(devh,data_in,data_out))
+			{
+				fprintf(stderr,"Error whilst transfering data...");
+				return;
+			}
+		}
+
+		
+   }
+}
+
+
+/*Display the boot info need for erase and write data*/
 void bootInfo_buffer(void *boot_info,const void *buffer){
 TBootInfo *bootinfo_t = boot_info;
 uint8_t *data;
@@ -388,7 +537,7 @@ uint8_t *data;
 	memcpy(((uint8_t*)bootinfo_t+23),((uint8_t*)buffer+24),sizeof(TULongField));
 	memcpy(((uint8_t*)bootinfo_t+31),((uint8_t*)buffer+32),sizeof(TStringField));
 	
-	printf("\n%02x\n%02x\t%02x\n%02x\t%08x\n%02x\t%04x\n%02x\t%04x\n%02x\t%04x\n%02x\t%08x\n%02x\t%s\n"
+	printf("\n%02x\n%02x\t%02x\n%02x\t%08x\n%02x\t%04x\n%02x\t%04x\n%02x\t%04x\n%02x\t%08x\n%02x\t%s\n\n"
 		,bootinfo_t->bSize
 		,bootinfo_t->bMcuType.fFieldType
 		,bootinfo_t->bMcuType.fValue
