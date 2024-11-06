@@ -97,3 +97,6 @@ step 7:  send          [HEX]... 64 bytes at a time for the entire file, pad 0xff
                                 a packet will be sent back after the count has been reached.
           recieve      [STX][cmdWRITE]... after all packets have been sent, 
 
+
+Will update as progress is made.
+
