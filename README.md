@@ -137,6 +137,63 @@ HEX record types are shown below
 FC											//checksum		
 
 
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+Format of Intel hex files
+Intel hex files consist of a number of lines, each of the form
+
+	:nnaaaattddddd...dcc
+
+with
+
+	:	start of record
+	nn	length of record
+	aaaa	memory address to load
+	tt	type: 00 data, 01 end-of-file
+	dd..d	data
+	cc	checksum
+
+All numbers are in ASCII hex. The checksum makes sure that the sum
+of all bytes is zero.
+
+For example,
+
+	:03000000021A20C1
+
+says 3 bytes, address 0000, bytes 02, 1A, 20.
+
+For example,
+
+	:011A5000D2C3
+
+says 1 byte, address 1A50 (hex), byte D2. We have 01 + 1A + 50 + 00 + D2 + C3 = 00.
+
+For example,
+
+	:00000001FF
+
+is the end-of-file record.
+Firmware download for Carry USB chips
+Comparing the Intel hex file with what UsbSnoop sees:
+
+	:100E5800C203C200C202C201120A9ED2E843D820CD
+
+	10 00 58 0e 00 c2 03 c2 00 c2 02 c2 01 12 0a 9e
+	d2 e8 43 d8 20 cd
+
+we see that the number and the address are both sent as little endian shorts.
+
+	:040EA8008080D6224E
+	:10054600907FE9E070030206E114700302075D2460
+
+	04 00 a8 0e 00 80 80 d6 22 4e 10 05 46 00 90 7f
+	e9 e0 70 03 02 06
+
+	10 00 46 05 00 90 7f e9 e0 70 03 02 06 e1 14 70
+	03 02 07 5d 24 60
+
+short records are padded with (random?) stuff, namely the start of the following record. 
+
 
 //Last line of a hex file is always
 :00000001FF	
