@@ -25,6 +25,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 //#include </usr/include/libusb-1.0/libusb.h>
 #include <libusb-1.0/libusb.h>
 #include <assert.h>
@@ -468,7 +469,9 @@ char path[250] = {0};  //path to hex file
 static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
 static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE]; 
 
-int32_t _blocks_to_flash_ = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
+uint16_t _blocks_to_flash_ = 0,modulo = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
+double _blocks_temp = 0.0,fractional = 0.0,integer = 0.0;
+uint8_t temp_byte_int[2];
    while(tcmd_t != cmdDONE)
    {	
 		switch (tcmd_t)
@@ -513,14 +516,22 @@ int32_t _blocks_to_flash_ = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
 					printf("file length = %u\n",size);
 					trigger = 1;
 				}
-				_blocks_to_flash_ = (int32_t)(size / bootinfo_t.ulMcuSize.fValue);
+
+				_blocks_temp = ((float)bootinfo_t.ulMcuSize.fValue / (float)size);
+				fractional = modf(_blocks_temp,&integer);
+				_blocks_to_flash_ = (uint16_t)integer;
+				
+				if(fractional > 0.0)_blocks_to_flash_++;
 				if(_blocks_to_flash_ == 0)_blocks_to_flash_ = 1;
+
+				 _blocks_to_flash_ = swap_bytes(temp_byte_int,_blocks_to_flash_);
 				 printf("block size:= %u\n",_blocks_to_flash_);
+
 				break;
-			case cmdERASE:	
+			case cmdERASE:	//1d000000
 				data_out[0] = 0x0f;data_out[1] = (char)cmdERASE;		
 				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+8,&_blocks_to_flash_,sizeof(int16_t));	
+				memcpy(data_out+7,temp_byte_int,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
@@ -529,7 +540,7 @@ int32_t _blocks_to_flash_ = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
 			case cmdWRITE:
 				data_out[0] = 0x0f;data_out[1] = (char)cmdWRITE;		
 				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+8,&_blocks_to_flash_,sizeof(int16_t));	
+				memcpy(data_out+7,temp_byte_int,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
@@ -603,14 +614,15 @@ uint8_t *data;
 
 }
 
-void swap_bytes(uint8_t *bytes,int num){
-uint8_t byte_ = 0;
+int16_t swap_bytes(uint8_t *bytes,int16_t num)
+{
 
-  for(uint32_t i = 1;i < sizeof(bytes);i+=2){
-	byte_ = bytes[i];
-	bytes[i] = bytes[i+1];
-	bytes[i+1] = byte_;
-  }
+uint8_t byte_ = 0;
+union TIntToChars int2char_t;
+  int2char_t.ints = num;
   
+  bytes[0] = int2char_t.bytes[1];
+  bytes[1] = int2char_t.bytes[0];
+  return int2char_t.ints;
 }
 

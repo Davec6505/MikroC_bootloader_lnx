@@ -3,10 +3,15 @@
 
 #include <stdint.h>
 
-
 // Supported MCU families/types.
 enum TMcuType {mtPIC16 = 1, mtPIC18, mtPIC18FJ, mtPIC24, mtDSPIC = 10, mtPIC32 = 20};
 
+
+// Int splitter
+union TIntToChars{
+  char bytes[2];
+  int ints;
+};
 // Bootloader info field ID's.
 enum TBootInfoField {bifMCUTYPE=1,  // MCU type/family.
                      bifMCUID,      // MCU ID number.
@@ -28,7 +33,8 @@ typedef enum  {
   cmdBOOT,                 // Go to bootloader mode.
   cmdREBOOT,               // Restart MCU.
   cmdWRITE=11,             // Write to MCU flash.
-  cmdERASE=21              // Erase MCU flash.
+  cmdERASE=21,             // Erase MCU flash.
+  cmdHEX = 31
   }TCmd;            
 
 
@@ -89,7 +95,7 @@ typedef struct {
 */
 void setupChiptoBoot(struct libusb_device_handle *devh);
 void bootInfo_buffer(void *boot_info,const void *buffer);
-void swap_bytes(uint8_t *bytes,int num);
+int16_t swap_bytes(uint8_t *bytes,int16_t num);
 
 
 
