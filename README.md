@@ -100,3 +100,43 @@ step 7:  send          [HEX]... 64 bytes at a time for the entire file, pad 0xff
 
 Will update as progress is made.
 
+
+///////////////////////////////////////////////////////////////////////////////////////
+//                                  HEX FILE FORMAT                                  //
+///////////////////////////////////////////////////////////////////////////////////////
+
+HEX record types are shown below
+
+00 = Data record                                                              
+01 = End of file record                                                       
+02 = Extended segment address record                                          
+03 = Start segment address record                                             
+04 = Extended linear address record                                           
+05 = Start linear address record 
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
+//First line of a hex file
+:
+02
+0000
+04
+1FC0
+1B
+
+
+//Line of a hex file
+:101100003C0C400B000000700000007000000070FC
+
+:											//Start of record
+10											//Record length
+1100										//Load address
+00											//Record type
+3C0C400B000000700000007000000070			//Actual data
+FC											//checksum		
+
+
+
+//Last line of a hex file is always
+:00000001FF	
