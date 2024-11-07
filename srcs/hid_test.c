@@ -60,7 +60,7 @@ static const int MAX_CONTROL_OUT_TRANSFER_SIZE = 64;
 static const int INTERFACE_NUMBER = 0;
 static const int TIMEOUT_MS = 5000;
 
-
+static const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 
 int exchange_feature_reports_via_control_transfers(libusb_device_handle *devh);
 int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle *devh);
@@ -456,28 +456,30 @@ int boot_interrupt_transfers(libusb_device_handle *devh,char *data_in,char *data
 */
 
 void setupChiptoBoot(struct libusb_device_handle *devh){
-int result = 0;
+static int8_t trigger = 0;
+int16_t result = 0;
+
+uint32_t size = 0;
 TCmd tcmd_t = cmdINFO;
 TBootInfo bootinfo_t = {0};
-FILE fp;
+FILE *fp;
 char path[250] = {0};  //path to hex file
 
 static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
 static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE]; 
 
+int32_t _blocks_to_flash_ = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
    while(tcmd_t != cmdDONE)
    {	
 		switch (tcmd_t)
 		{
+	
 			case cmdSYNC:
-
-
-				data_out[0] = 0x0f;data_out[1] = (char)cmdSYNC;
-				tcmd_t = cmdERASE;
-				for (int i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				data_out[0] = 0x0f;data_out[1] = (char)cmdSYNC;		
+				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
-				}
+				}			
 				break;
 			case cmdINFO:
 				data_out[0] = 0x0f;data_out[1] = (char)cmdINFO;
@@ -485,7 +487,6 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 				{
 					data_out[i]=0x0;
 				}
-				tcmd_t = cmdBOOT;
 				break;
 			case cmdBOOT:
 		        bootInfo_buffer(&bootinfo_t,data_in);
@@ -494,21 +495,52 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 				{
 					data_out[i]=0x0;
 				}
-				tcmd_t = cmdNON;
 				break;
 			case cmdNON:
-				printf("\n\tEntre the path of the hex file...\n");
+				printf("\n\tEnter the path of the hex file... ");
 				fgets(path,sizeof(path),stdin);
 				size_t len = strlen(path);
 				if(len > 0 && path[len-1] == '\n'){
 					path[len -1] = '\0'; //remove \n
 				}
-				printf("%s\n",path);
-				return;
+				printf("\n%s\n",path);
+				fp = fopen(path,"rb");
+				if(fp == NULL){
+				  fprintf(stderr,"Could not find or open a file!!\n");
+				}
+				else{					
+					for(size = 0; getc(fp) != EOF;size++);
+					printf("file length = %u\n",size);
+					trigger = 1;
+				}
+				_blocks_to_flash_ = (int32_t)(size / bootinfo_t.ulMcuSize.fValue);
+				if(_blocks_to_flash_ == 0)_blocks_to_flash_ = 1;
+				 printf("block size:= %u\n",_blocks_to_flash_);
+				break;
+			case cmdERASE:	
+				data_out[0] = 0x0f;data_out[1] = (char)cmdERASE;		
+				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
+				memcpy(data_out+8,&_blocks_to_flash_,sizeof(int16_t));	
+				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}			
+				break;	
+			case cmdWRITE:
+				data_out[0] = 0x0f;data_out[1] = (char)cmdWRITE;		
+				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
+				memcpy(data_out+8,&_blocks_to_flash_,sizeof(int16_t));	
+				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}
+				break;
+			case cmdHEX:
 				break;
 			default:		    
 				break;
 		}
+
 		// Send and receive data.
         if(tcmd_t != cmdNON)
 		{
@@ -519,6 +551,21 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 			}
 		}
 
+		switch(tcmd_t)
+		{
+			case cmdINFO:tcmd_t = cmdBOOT;break;
+			case cmdBOOT:tcmd_t = cmdNON;break;
+			case cmdNON:
+				if(trigger == 1)
+				{
+					tcmd_t = cmdSYNC;					
+				}
+				break;
+			case cmdSYNC:tcmd_t = cmdERASE;break;
+			case cmdERASE:tcmd_t = cmdWRITE;break;
+			case cmdWRITE:tcmd_t = cmdHEX;break;
+			default:break;
+		}
 		
    }
 }
@@ -566,3 +613,4 @@ uint8_t byte_ = 0;
   }
   
 }
+
