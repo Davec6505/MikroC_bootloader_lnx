@@ -530,8 +530,8 @@ uint8_t temp_byte_int[2];
 				break;
 			case cmdERASE:	//1d000000
 				data_out[0] = 0x0f;data_out[1] = (char)cmdERASE;		
-				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+7,temp_byte_int,sizeof(int16_t));	
+				memcpy(data_out+2,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
+				memcpy(data_out+6,temp_byte_int,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
@@ -539,8 +539,8 @@ uint8_t temp_byte_int[2];
 				break;	
 			case cmdWRITE:
 				data_out[0] = 0x0f;data_out[1] = (char)cmdWRITE;		
-				memcpy(data_out+3,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+7,temp_byte_int,sizeof(int16_t));	
+				memcpy(data_out+2,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
+				memcpy(data_out+6,temp_byte_int,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
