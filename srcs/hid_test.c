@@ -509,15 +509,21 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 				printf("\n\tEnter the path of the hex file... ");
 				fgets(path,sizeof(path),stdin);
 				size_t len = strlen(path);
-				if(len > 0 && path[len-1] == '\n'){
+
+				if(len > 0 && path[len-1] == '\n')
+				{
 					path[len -1] = '\0'; //remove \n
 				}
+
 				printf("\n%s\n",path);
 				fp = fopen(path,"rb");
-				if(fp == NULL){
-				  fprintf(stderr,"Could not find or open a file!!\n");
+
+				if(fp == NULL)
+				{
+					fprintf(stderr,"Could not find or open a file!!\n");
 				}
-				else{	
+				else
+				{	
 					for(size = 0; getc(fp) != EOF;size++);
 					printf("file length = %u\n",size);
 					printf("line count:= %u\n",locate_address_in_file(fp));		
@@ -651,21 +657,28 @@ int16_t locate_address_in_file(FILE *fp){
    char  line[64];
    size_t len = 0;
    ssize_t read;
-
-    if (fp == NULL)
+   FILE *fp_t = fp;
+    if (fp_t == NULL)
     {
 		printf("No file found...\n");
 	    exit(EXIT_FAILURE);
 	}
 		
-
-    while (fgets(line, 64, fp))
-    {
-        // Remove trailing newline
-        line[strcspn(line, "\r\n")] = 0;
-        printf("%s\n", line);
-    }
-
+    while(line_count < 500)
+	{
+		for(int i = 0; i < 64;i++){
+		  line[i] =	fgetc(fp_t);
+		  if(line[i] == '\r' | line[i] == '\n')
+		  {	
+			line[i] = '\0';
+			break;
+		  }
+		  printf("%02x ",line[i]);
+		}
+		printf("\n");
+		line_count++;
+	}
+	
 	return line_count;
 }
 
