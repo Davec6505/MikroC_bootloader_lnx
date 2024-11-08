@@ -473,6 +473,8 @@ TBootInfo bootinfo_t = {0};
 FILE *fp;
 char path[250] = {0};  //path to hex file
 
+
+
 static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
 static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE]; 
 
@@ -515,9 +517,10 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 				if(fp == NULL){
 				  fprintf(stderr,"Could not find or open a file!!\n");
 				}
-				else{					
+				else{	
 					for(size = 0; getc(fp) != EOF;size++);
 					printf("file length = %u\n",size);
+					locate_address_in_file(fp);		
 					trigger = 1;
 				}
 
@@ -532,8 +535,8 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 
 				break;
 			case cmdERASE:	//1d000000
-				
-				_temp_flash_erase_ = (_PIC32Mn_STARTFLASH + (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal))-1);
+					
+				_temp_flash_erase_ = (_PIC32Mn_STARTFLASH + (uint32_t)((_blocks_to_flash_* bootinfo_t.uiEraseBlock.fValue.intVal))-1);
 				printf("%u\n",_temp_flash_erase_);
 				data_out[0] = 0x0f;data_out[1] = (char)cmdERASE;		
 				memcpy(data_out+2,&_temp_flash_erase_,sizeof(uint32_t));	
@@ -640,4 +643,31 @@ union TIntToChars int2char_t;
   bytes[1] = int2char_t.bytes[0];
   return int2char_t.ints;
 }
+
+
+
+int16_t locate_address_in_file(FILE *fp){
+   uint16_t line_count = 0;
+   char  line[64];
+   size_t len = 0;
+   ssize_t read;
+
+    if (fp == NULL)
+    {
+		printf("No file found...\n");
+	    exit(EXIT_FAILURE);
+	}
+		
+
+    while (fgets(line, 64, fp))
+    {
+        // Remove trailing newline
+        line[strcspn(line, "\r\n")] = 0;
+        printf("%s\n", line);
+    }
+
+	return line_count;
+}
+
+
 

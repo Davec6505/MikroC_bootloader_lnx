@@ -96,7 +96,8 @@ typedef struct {
 void setupChiptoBoot(struct libusb_device_handle *devh);
 void bootInfo_buffer(void *boot_info,const void *buffer);
 int16_t swap_bytes(uint8_t *bytes,int16_t num);
-
+int16_t locate_address_in_file(FILE *fp);
+int16_t get_data_array(FILE *fp,uint8_t *bytes);
 
 
 
