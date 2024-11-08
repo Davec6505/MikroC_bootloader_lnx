@@ -520,7 +520,7 @@ static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE];
 				else{	
 					for(size = 0; getc(fp) != EOF;size++);
 					printf("file length = %u\n",size);
-					locate_address_in_file(fp);		
+					printf("line count:= %u\n",locate_address_in_file(fp));		
 					trigger = 1;
 				}
 
