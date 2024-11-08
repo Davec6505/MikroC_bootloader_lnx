@@ -401,7 +401,7 @@ int boot_interrupt_transfers(libusb_device_handle *devh,char *data_in,char *data
 	  	printf("Data sent via interrupt transfer:\n");
 	  	for(i = 0; i < bytes_transferred; i++)
 	  	{
-	  		printf("%02x ",data_out[i]);
+	  		printf("%02x ",data_out[i]&0xff);
 	  	}
 	  	printf("\n");
 
@@ -422,7 +422,7 @@ int boot_interrupt_transfers(libusb_device_handle *devh,char *data_in,char *data
 			  	printf("Data received via interrupt transfer:\n");
 			  	for(i = 0; i < bytes_transferred; i++)
 			  	{
-			  		printf("%02x ",data_in[i]);
+			  		printf("%02x ",data_in[i]&0xff);
 			  	}
 			  	printf("\n");
 			}
@@ -457,21 +457,25 @@ int boot_interrupt_transfers(libusb_device_handle *devh,char *data_in,char *data
 */
 
 void setupChiptoBoot(struct libusb_device_handle *devh){
+//utils
 static int8_t trigger = 0;
 int16_t result = 0;
 
+//flash size
 uint32_t size = 0;
+uint32_t _temp_flash_erase_ = 0;
+uint16_t _blocks_to_flash_ = 0,modulo = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
+double _blocks_temp = 0.0,fractional = 0.0,integer = 0.0;
 TCmd tcmd_t = cmdINFO;
 TBootInfo bootinfo_t = {0};
+
+//file handling
 FILE *fp;
 char path[250] = {0};  //path to hex file
 
 static char data_in[MAX_INTERRUPT_IN_TRANSFER_SIZE];
 static char data_out[MAX_INTERRUPT_OUT_TRANSFER_SIZE]; 
 
-uint16_t _blocks_to_flash_ = 0,modulo = 0;//(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
-double _blocks_temp = 0.0,fractional = 0.0,integer = 0.0;
-uint8_t temp_byte_int[2];
    while(tcmd_t != cmdDONE)
    {	
 		switch (tcmd_t)
@@ -523,15 +527,17 @@ uint8_t temp_byte_int[2];
 				
 				if(fractional > 0.0)_blocks_to_flash_++;
 				if(_blocks_to_flash_ == 0)_blocks_to_flash_ = 1;
-
-				 _blocks_to_flash_ = swap_bytes(temp_byte_int,_blocks_to_flash_);
+				 //_blocks_to_flash_ = swap_bytes(temp_byte_int,_blocks_to_flash_);
 				 printf("block size:= %u\n",_blocks_to_flash_);
 
 				break;
 			case cmdERASE:	//1d000000
+				
+				_temp_flash_erase_ = (_PIC32Mn_STARTFLASH + (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal))-1);
+				printf("%u\n",_temp_flash_erase_);
 				data_out[0] = 0x0f;data_out[1] = (char)cmdERASE;		
-				memcpy(data_out+2,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+6,temp_byte_int,sizeof(int16_t));	
+				memcpy(data_out+2,&_temp_flash_erase_,sizeof(uint32_t));	
+				memcpy(data_out+6,&_blocks_to_flash_,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
@@ -540,7 +546,7 @@ uint8_t temp_byte_int[2];
 			case cmdWRITE:
 				data_out[0] = 0x0f;data_out[1] = (char)cmdWRITE;		
 				memcpy(data_out+2,&_PIC32Mn_STARTFLASH,sizeof(uint32_t));	
-				memcpy(data_out+6,temp_byte_int,sizeof(int16_t));	
+				memcpy(data_out+6,&_blocks_to_flash_,sizeof(int16_t));	
 				for (int i=9;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 				{
 					data_out[i]=0x0;
@@ -548,6 +554,14 @@ uint8_t temp_byte_int[2];
 				break;
 			case cmdHEX:
 				break;
+			case cmdREBOOT:
+		    
+				data_out[0] = 0x0f;data_out[1] = (char)cmdREBOOT;
+				for (int i=2;i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
+				{
+					data_out[i]=0x0;
+				}
+				break;	
 			default:		    
 				break;
 		}
@@ -573,8 +587,9 @@ uint8_t temp_byte_int[2];
 				}
 				break;
 			case cmdSYNC:tcmd_t = cmdERASE;break;
-			case cmdERASE:tcmd_t = cmdWRITE;break;
+			case cmdERASE:tcmd_t = /*cmdWRITE*/cmdREBOOT;break;
 			case cmdWRITE:tcmd_t = cmdHEX;break;
+			case cmdREBOOT:tcmd_t = cmdNON;break;
 			default:break;
 		}
 		
