@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+// Bootloader physical start address equasion:
+//  __FLASH_SIZE = 0x00200000;  & __BOOT_FLASH_SIZE = 0x00028000;   1d000000 + ((200000 - 9858)/4000)*4000 == 1d1f4000
+// Boot flash size can be aquired after a compiation of Boot firmware in MikroC Pro
+#define __BOOT_FLASH_SIZE 0x9858
+
 // Supported MCU families/types.
 enum TMcuType
 {
@@ -131,10 +136,7 @@ typedef struct
 
 // chip communication handling
 void bootInfo_buffer(void *boot_info, const void *buffer);
+void load_hex_buffer(char *data, uint16_t iterable);
 void setupChiptoBoot(struct libusb_device_handle *devh);
-
-// utilities
-int16_t swap_bytes(uint8_t *bytes, int16_t num);
-uint16_t swap_wordbytes(uint16_t wb);
 
 #endif
