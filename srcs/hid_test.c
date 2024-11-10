@@ -42,7 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-#define DEBUG
+//#define DEBUG
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -684,10 +684,10 @@ uint16_t swap_wordbytes(uint16_t w_b)
 static uint32_t locate_address_in_file(FILE *fp)
 {
 	// function vars
-	uint8_t _have_data_ = 0;
+	volatile uint8_t _have_data_ = 0;
 	uint16_t i = 0, j = 0;
 	static uint16_t k = 0;
-	volatile uint32_t count = 0;
+	static volatile uint32_t count = 0;
 	uint32_t size = 0;
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -771,7 +771,10 @@ static uint32_t locate_address_in_file(FILE *fp)
 			uint32_t address = transform_2words_long(hex.add_msw, hex.add_lsw);
 
 			if (address == _PIC32Mn_STARTFLASH)
-				_have_data_ = 1;
+			{
+					_have_data_ = 1;
+					printf("%d/n",_have_data_);
+			}
 
 #ifdef DEBUG
 			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
@@ -786,7 +789,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 #ifdef DEBUG
 				*(flash_ptr) = line[k + 4];
 				printf("[%02x]", *(flash_ptr++));
-#else
+#endif
+#ifndef DEBUG
 				*(flash_ptr++) = line[k + 4];
 #endif
 				count++;
