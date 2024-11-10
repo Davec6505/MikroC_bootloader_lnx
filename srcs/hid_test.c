@@ -42,7 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-#define DEBUG
+#define DEBUG -1
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -686,8 +686,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 	// function vars
 	uint8_t _have_data_ = 0;
 	uint16_t i = 0, j = 0;
-	static uint16_t k = 0;
-	volatile uint32_t count = 0;
+	uint16_t k = 0;
+	uint32_t count = 0;
 	uint32_t size = 0;
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -708,7 +708,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 	// get file size to allocate memory
 	size = file_byte_count(fp);
-
 	if (size > 0)
 	{
 		flash_ptr = (uint8_t *)malloc(sizeof(uint8_t) * size);
@@ -730,33 +729,42 @@ static uint32_t locate_address_in_file(FILE *fp)
 		{
 			// sanity checks
 			if (c_ == EOF)
+			{
 				break;
+			}
 
 			c = (unsigned char)c_;
 
 			// make sure we dont capture new line
 			if (c == '\n')
+			{
 				break;
+			}
 
 			// start char of a new line in a hex file is always a ':'
 			if (c == ':')
+			{
 				continue;
+			}
 
 			// extract each ascii char from hex file line and convert to bin data
 			temp_[j++] = transform_char_bin(c);
+
 			if (j > 1)
 			{
 				line[i] = transform_2chars_1bin(temp_);
 				j = 0;
-#ifdef DEBUG
+
+#if DEBUG == 1
 				printf("[%02x] ", line[i++]);
+#else
+				i++;
 #endif
 			}
 		}
 
 		// extract byte count and address and report type
 		memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
-
 		// hex file report 01 is end of file EXIT loop
 		if (hex.report == 0x01)
 		{
@@ -771,9 +779,11 @@ static uint32_t locate_address_in_file(FILE *fp)
 			uint32_t address = transform_2words_long(hex.add_msw, hex.add_lsw);
 
 			if (address == _PIC32Mn_STARTFLASH)
+			{
 				_have_data_ = 1;
+			}
 
-#ifdef DEBUG
+#if DEBUG == 1
 			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
 #endif
 		}
@@ -783,7 +793,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 			//  data resides in this row start to add to data
 			for (k = 0; k < hex.data_quant; k++)
 			{
-#ifdef DEBUG
+#if DEBUG == 1
 				*(flash_ptr) = line[k + 4];
 				printf("[%02x]", *(flash_ptr++));
 #else
@@ -792,7 +802,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 				count++;
 			}
 		}
-#ifdef DEBUG
+#if DEBUG == 1
 		printf("\n");
 #endif
 
