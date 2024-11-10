@@ -754,12 +754,10 @@ static uint32_t locate_address_in_file(FILE *fp)
 			{
 				line[i] = transform_2chars_1bin(temp_);
 				j = 0;
-
 #if DEBUG == 1
-				printf("[%02x] ", line[i++]);
-#else
-				i++;
+				printf("[%02x] ", line[i]);
 #endif
+				i++;
 			}
 		}
 
