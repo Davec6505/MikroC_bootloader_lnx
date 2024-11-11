@@ -624,6 +624,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 		case cmdWRITE:
 			_out_only = 1;
 			hex_load_percent_last = 0;
+			hex_load_tracking = 0;
 			data_out[0] = 0x0f;
 			data_out[1] = (char)cmdWRITE;
 			memcpy(data_out + 2, &_PIC32Mn_STARTFLASH, sizeof(uint32_t));
@@ -634,21 +635,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 			break;
 		case cmdHEX:
-			_out_only = 1;
-			// use the flash buffer to stream 64 byte slices at a time
-			load_hex_buffer(data_out, iterate);
-			hex_load_tracking++;
+
 			if (hex_load_tracking > (hex_load_percent_last + hex_load_percent))
 			{
 				hex_load_percent_last = hex_load_tracking;
 			}
 
-			if (hex_load_tracking >= hex_load_limit)
-			{
-				tcmd_t = cmdREBOOT;
-				_out_only = 0;
-			}
-			else if (hex_load_tracking == hex_load_limit - 1)
+			if (hex_load_tracking == hex_load_limit - 1)
 			{
 				iterate = hex_load_modulo;
 			}
@@ -656,6 +649,17 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			{
 				iterate = MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			}
+			_out_only = 1;
+			// use the flash buffer to stream 64 byte slices at a time
+			load_hex_buffer(data_out, iterate);
+			hex_load_tracking++;
+
+			if (hex_load_tracking > hex_load_limit)
+			{
+				tcmd_t = cmdREBOOT;
+				_out_only = 0;
+			}
+
 			break;
 		case cmdREBOOT:
 			_out_only = 0;
@@ -672,7 +676,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 		}
 
 		// Send and receive data.
-		if (tcmd_t != cmdNON)
+		if (tcmd_t != cmdNON && !(tcmd_t == cmdREBOOT && _out_only == 1))
 		{
 			if (boot_interrupt_transfers(devh, data_in, data_out, _out_only))
 			{
@@ -815,11 +819,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 		// ¬k = 0;
 		while (c_ = fgetc(fp))
 		{
-			// sanity checks
-			if (c_ == EOF)
-			{
-				break;
-			}
 
 			c = (unsigned char)c_;
 
@@ -851,12 +850,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 		// extract byte count and address and report type
 		memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
-		// hex file report 01 is end of file EXIT loop
-		if (hex.report == 0x01)
-		{
-			printf("End of hex!\n");
-			break;
-		}
 
 		if (hex.report == 0x02 | hex.report == 0x04)
 		{
@@ -893,7 +886,24 @@ static uint32_t locate_address_in_file(FILE *fp)
 #endif
 
 		if (count > size)
+		{
+			printf("SIZE!!\n");
 			break;
+		}
+
+		// sanity checks
+		if (c_ == EOF)
+		{
+			printf("EOF!\n");
+			break;
+		}
+
+		// hex file report 01 is end of file EXIT loop
+		if (hex.report == 0x01)
+		{
+			printf("End of hex!\n");
+			break;
+		}
 	}
 
 	printf("Buffer count:= %u | file length = %u\n", count, size);
