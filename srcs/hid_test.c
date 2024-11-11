@@ -42,11 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-<<<<<<< HEAD
 //#define DEBUG
-=======
-#define DEBUG -1
->>>>>>> origin
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -632,7 +628,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			data_out[0] = 0x0f;
 			data_out[1] = (char)cmdWRITE;
 			memcpy(data_out + 2, &_PIC32Mn_STARTFLASH, sizeof(uint32_t));
-			memcpy(data_out + 6, &_blocks_to_flash_, sizeof(int16_t));
+			memcpy(data_out + 6, &size, sizeof(int16_t));
 			for (int i = 9; i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
 			{
 				data_out[i] = 0x0;
@@ -780,13 +776,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 	// function vars
 	volatile uint8_t _have_data_ = 0;
 	uint16_t i = 0, j = 0;
-<<<<<<< HEAD
 	static uint16_t k = 0;
 	static volatile uint32_t count = 0;
-=======
-	uint16_t k = 0;
-	uint32_t count = 0;
->>>>>>> origin
 	uint32_t size = 0;
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -868,12 +859,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 			if (address == _PIC32Mn_STARTFLASH)
 			{
-<<<<<<< HEAD
 					_have_data_ = 1;
 					printf("%d/n",_have_data_);
-=======
-				_have_data_ = 1;
->>>>>>> origin
 			}
 
 #if DEBUG == 1
@@ -889,14 +876,9 @@ static uint32_t locate_address_in_file(FILE *fp)
 #if DEBUG == 1
 				*(flash_ptr) = line[k + 4];
 				printf("[%02x]", *(flash_ptr++));
-<<<<<<< HEAD
 #endif
 #ifndef DEBUG
-				*(flash_ptr++) = line[k + 4];
-=======
-#else
 				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
->>>>>>> origin
 #endif
 				count++;
 			}
