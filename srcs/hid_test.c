@@ -851,11 +851,11 @@ static uint32_t locate_address_in_file(FILE *fp)
 		// extract byte count and address and report type
 		memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
 
-		if (hex.report == 0x02 | hex.report == 0x04)
+		if (hex.report.report == 0x02 | hex.report.report == 0x04)
 		{
-			hex.add_lsw = swap_wordbytes(hex.add_lsw);
+			hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
 			hex.add_msw = swap_wordbytes(hex.add_msw);
-			uint32_t address = transform_2words_long(hex.add_msw, hex.add_lsw);
+			uint32_t address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
 
 			if (address == _PIC32Mn_STARTFLASH)
 			{
@@ -866,11 +866,11 @@ static uint32_t locate_address_in_file(FILE *fp)
 			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
 #endif
 		}
-		else if (hex.report == 00 & _have_data_)
+		else if (hex.report.report == 00 & _have_data_)
 		{
 			// memcpy(flash_buffer, line + 4, hex.data_quant);
 			//  data resides in this row start to add to data
-			for (k = 0; k < hex.data_quant; k++)
+			for (k = 0; k < hex.report.data_quant; k++)
 			{
 #if DEBUG == 1
 				*(flash_ptr) = line[k + 4];
@@ -899,7 +899,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 		}
 
 		// hex file report 01 is end of file EXIT loop
-		if (hex.report == 0x01)
+		if (hex.report.report == 0x01)
 		{
 			printf("End of hex!\n");
 			break;

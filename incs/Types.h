@@ -117,11 +117,16 @@ typedef union
   uint16_t a_word;
   uint8_t bytes[2];
 } __attribute__((packed)) WORD_BYTES;
+
 typedef struct
 {
   uint8_t data_quant;
   uint16_t add_lsw;
   uint8_t report;
+} __attribute__((packed)) _HEX_REPORT_;
+typedef struct
+{
+  _HEX_REPORT_ report;
   uint16_t add_msw;
 } __attribute__((packed)) _HEX_;
 
