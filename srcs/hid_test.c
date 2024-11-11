@@ -876,7 +876,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 				*(flash_ptr) = line[k + 4];
 				printf("[%02x]", *(flash_ptr++));
 #else
-				*(flash_ptr++) = line[k + 4];
+				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
 #endif
 				count++;
 			}
