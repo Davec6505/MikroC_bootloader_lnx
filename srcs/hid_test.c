@@ -885,7 +885,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 				//get the highest address found
 				if(hex.report.add_lsw > highest_lsw_address)
 				{
-					highest_lsw_address = hex.report.add_lsw;
+					highest_lsw_address   = hex.report.add_lsw;
+					lsw_address_not_found = 0;
 				}
 
 			    if(hex.report.add_lsw != last_lsw_address)
@@ -895,7 +896,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 				else if(hex.report.add_lsw == last_lsw_address)
 				{
 				    last_lsw_address += 0x10;
-					lsw_address_not_found = 0;
 
 #if DEBUG == 2 //check if address is linear
 					printf("[%04x] [%04x]\n",hex.report.add_lsw,last_lsw_address);
@@ -941,21 +941,18 @@ static uint32_t locate_address_in_file(FILE *fp)
 			//and track address continuation
 			if(count != size){
 				fseek(fp, 0, SEEK_SET);
-				//if address not in buffer
+				//if address not in buffera
+				if(lsw_address_not_found == 0)
+				{
+					last_lsw_address += 0x10;
+				}
 				lsw_address_not_found++;
 				if(lsw_address_not_found > 1)
 				{
-					last_lsw_address += 0x10;
-
-					if(last_lsw_address > highest_lsw_address)
-					{
-						break;
-					}
+					break;
 				}
-			
 
-				printf("Starting over...\n");
-				
+				printf("Starting over...\n");			
 			}
 			else{
 				printf("End of hex!\n");
