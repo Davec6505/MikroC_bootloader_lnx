@@ -888,6 +888,10 @@ static uint32_t locate_address_in_file(FILE *fp)
 					highest_lsw_address   = hex.report.add_lsw;
 					lsw_address_not_found = 0;
 				}
+				else
+				{
+					lsw_address_not_found++;
+				}
 
 			    if(hex.report.add_lsw != last_lsw_address)
 				{
@@ -946,7 +950,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 				{
 					last_lsw_address += 0x10;
 				}
-				lsw_address_not_found++;
+
 				if(lsw_address_not_found > 1)
 				{
 					break;
