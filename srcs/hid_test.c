@@ -42,7 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-//#define DEBUG
+#define DEBUG 2
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -696,7 +696,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 		case cmdNON:
 			if (trigger == 1)
 			{
-				tcmd_t = cmdSYNC;
+				tcmd_t = cmdREBOOT;//cmdSYNC;
 			}
 			break;
 		case cmdSYNC:
@@ -778,6 +778,11 @@ static uint32_t locate_address_in_file(FILE *fp)
 	uint16_t i = 0, j = 0;
 	static uint16_t k = 0;
 	static volatile uint32_t count = 0;
+	static uint32_t address = 0;
+	static uint16_t lsw_address = 0;
+	static uint8_t lsw_address_not_found = 0;
+	static uint16_t last_lsw_address = 0;
+	static uint16_t highest_lsw_address = 0;
 	uint32_t size = 0;
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -850,38 +855,67 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 		// extract byte count and address and report type
 		memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
-
+        
+	
 		if (hex.report.report == 0x02 | hex.report.report == 0x04)
 		{
 			hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
 			hex.add_msw = swap_wordbytes(hex.add_msw);
-			uint32_t address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
+			address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
 
 			if (address == _PIC32Mn_STARTFLASH)
 			{
 					_have_data_ = 1;
-					printf("%d/n",_have_data_);
+#if DEBUG == 2
+					printf("[%08x] [%d]\n",address,_have_data_);
+#endif
 			}
 
 #if DEBUG == 1
-			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
+			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.report.data_quant, hex.report.add_lsw, hex.report.report, hex.add_msw, address);
 #endif
 		}
 		else if (hex.report.report == 00 & _have_data_)
 		{
-			// memcpy(flash_buffer, line + 4, hex.data_quant);
-			//  data resides in this row start to add to data
-			for (k = 0; k < hex.report.data_quant; k++)
+			
+			if(address == _PIC32Mn_STARTFLASH)
 			{
+				hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
+				//printf("[%04x] [%04x]\n",hex.report.add_lsw,last_lsw_address);
+				//get the highest address found
+				if(hex.report.add_lsw > highest_lsw_address)
+				{
+					highest_lsw_address = hex.report.add_lsw;
+				}
+
+			    if(hex.report.add_lsw != last_lsw_address)
+				{
+					continue;
+				}		
+				else if(hex.report.add_lsw == last_lsw_address)
+				{
+				    last_lsw_address += 0x10;
+					lsw_address_not_found = 0;
+
+#if DEBUG == 2 //check if address is linear
+					printf("[%04x] [%04x]\n",hex.report.add_lsw,last_lsw_address);
+#endif					
+
+					// memcpy(flash_buffer, line + 4, hex.data_quant);
+					//  data resides in this row start to add to data
+					for (k = 0; k < hex.report.data_quant; k++)
+					{
 #if DEBUG == 1
-				*(flash_ptr) = line[k + 4];
-				printf("[%02x]", *(flash_ptr++));
+						*(flash_ptr) = line[k + 4];
+						printf("[%02x]", *(flash_ptr++));
+#else
+						*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
 #endif
-#ifndef DEBUG
-				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
-#endif
-				count++;
+						count++;
+					}
+				}
 			}
+						
 		}
 #if DEBUG == 1
 		printf("\n");
@@ -903,9 +937,32 @@ static uint32_t locate_address_in_file(FILE *fp)
 		// hex file report 01 is end of file EXIT loop
 		if (hex.report.report == 0x01)
 		{
-			printf("End of hex!\n");
-			break;
+			//if weve reache the end of the file and dont have all bytes restart
+			//and track address continuation
+			if(count != size){
+				fseek(fp, 0, SEEK_SET);
+				//if address not in buffer
+				lsw_address_not_found++;
+				if(lsw_address_not_found > 1)
+				{
+					last_lsw_address += 0x10;
+
+					if(last_lsw_address > highest_lsw_address)
+					{
+						break;
+					}
+				}
+			
+
+				printf("Starting over...\n");
+				
+			}
+			else{
+				printf("End of hex!\n");
+				break;
+			}
 		}
+	
 	}
 
 	printf("Buffer count:= %u | file length = %u\n", count, size);
