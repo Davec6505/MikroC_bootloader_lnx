@@ -778,6 +778,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 	uint16_t i = 0, j = 0;
 	static uint16_t k = 0;
 	static volatile uint32_t count = 0;
+	static uint32_t address = 0UL;
 	uint32_t size = 0;
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -855,12 +856,12 @@ static uint32_t locate_address_in_file(FILE *fp)
 		{
 			hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
 			hex.add_msw = swap_wordbytes(hex.add_msw);
-			uint32_t address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
+			address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
 
 			if (address == _PIC32Mn_STARTFLASH)
 			{
 				_have_data_ = 1;
-				printf("%d/n", _have_data_);
+				printf("%d\n", _have_data_);
 			}
 
 #if DEBUG == 1
@@ -869,18 +870,21 @@ static uint32_t locate_address_in_file(FILE *fp)
 		}
 		else if (hex.report.report == 00 & _have_data_)
 		{
-			// memcpy(flash_buffer, line + 4, hex.data_quant);
-			//  data resides in this row start to add to data
-			for (k = 0; k < hex.report.data_quant; k++)
+			if (address == _PIC32Mn_STARTFLASH)
 			{
+				// memcpy(flash_buffer, line + 4, hex.data_quant);
+				//  data resides in this row start to add to data
+				for (k = 0; k < hex.report.data_quant; k++)
+				{
 #if DEBUG == 1
-				*(flash_ptr) = line[k + 4];
-				printf("[%02x]", *(flash_ptr++));
+					*(flash_ptr) = line[k + 4];
+					printf("[%02x]", *(flash_ptr++));
 #endif
 #ifndef DEBUG
-				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
+					*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
 #endif
-				count++;
+					count++;
+				}
 			}
 		}
 #if DEBUG == 1
