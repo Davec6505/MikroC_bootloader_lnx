@@ -542,11 +542,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			fgets(path, sizeof(path), stdin);
 			size_t len = strlen(path);
 
+			// remove the backslashes from path
 			if (len > 0 && path[len - 1] == '\n')
 			{
 				path[len - 1] = '\0'; // remove \n
 			}
 
+			// show the path sanity check
 			printf("\n%s\n", path);
 			fp = fopen(path, "r");
 
