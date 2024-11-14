@@ -489,7 +489,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 
 	// hex loading
 	static uint16_t hex_load_percent = 0;
-	static uint16_t hex_load_percent_last = 0;
+	//static uint16_t hex_load_percent_last = 0;
 	static uint16_t hex_load_limit = 0;
 	static uint16_t hex_load_tracking = 0;
 	static uint16_t hex_load_modulo = 0;
@@ -572,6 +572,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 
 			// hex loading preperation
+			// usb interrupt transfer send 64 bytes at a time
 			hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			hex_load_modulo = size % MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			hex_load_percent = hex_load_limit / 100;
@@ -625,7 +626,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			break;
 		case cmdWRITE:
 			_out_only = 1;
-			hex_load_percent_last = 0;
+			//hex_load_percent_last = 0;
 			hex_load_tracking = 0;
 			data_out[0] = 0x0f;
 			data_out[1] = (char)cmdWRITE;
@@ -638,11 +639,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			break;
 		case cmdHEX:
 
-			if (hex_load_tracking > (hex_load_percent_last + hex_load_percent))
+	/*  	if (hex_load_tracking > (hex_load_percent_last + hex_load_percent))
 			{
 				hex_load_percent_last = hex_load_tracking;
 			}
-
+     */
 			if (hex_load_tracking == hex_load_limit - 1)
 			{
 				iterate = hex_load_modulo;
@@ -737,14 +738,14 @@ void load_hex_buffer(char *data, uint16_t iterable)
 	{
 		*(data + i) = *(flash_ptr++);
 	}
-	if (iterable < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
+	/*if (iterable < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
 	{
 		while (i < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
 		{
 			*(data + i) = -1;
 			i++;
 		}
-	}
+	}*/
 }
 
 /*Display the boot info need for erase and write data*/
@@ -775,7 +776,7 @@ void bootInfo_buffer(void *boot_info, const void *buffer)
  */
 static uint32_t locate_address_in_file(FILE *fp)
 {
-	// function vars
+// function vars
 	uint16_t i = 0, j = 0;
 
 	static uint16_t k = 0;
@@ -908,6 +909,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 	return count;
 }
+
+
 
 static uint32_t file_byte_count(FILE *fp)
 {
