@@ -774,15 +774,16 @@ void bootInfo_buffer(void *boot_info, const void *buffer)
 static uint32_t locate_address_in_file(FILE *fp)
 {
 	// function vars
-	volatile uint8_t _have_data_ = 0;
 	uint16_t i = 0, j = 0;
 
 	static uint16_t k = 0;
+	static uint16_t lsw_address_max = 0;
+	static uint16_t last_lsw_address = 0;
+
 	static uint32_t count = 0;
-	static uint32_t last_lsw_address = 0;
-	static uint32_t lsw_address_max = 0;
 	static uint32_t address = 0;
 	uint32_t size = 0;
+
 
 	int c_ = 0;
 	unsigned char c = '\0';
@@ -806,13 +807,15 @@ static uint32_t locate_address_in_file(FILE *fp)
 	if (size > 0)
 	{
 		flash_ptr = (uint8_t *)malloc((sizeof(uint8_t) * size) + 10);
+		flash_ptr = (uint8_t *)malloc((sizeof(uint8_t) * size) + 10);
 		// keep track of the starting point
 		flash_ptr_start = flash_ptr;
 	}
 
 	// start at the begining of the file and reset all relevant vars
+	// start at the begining of the file and reset all relevant vars
 	fseek(fp, 0, SEEK_SET);
-	_have_data_ = 0;
+
 	count = 0;
 	last_lsw_address = 0x00;
 
@@ -859,74 +862,36 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 		hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
 
+
+		hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
+
 		if (hex.report.report == 0x02 | hex.report.report == 0x04)
 		{
 			hex.add_msw = swap_wordbytes(hex.add_msw);
 			address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
+		}
+		else if ((address == _PIC32Mn_STARTFLASH) && (hex.report.report == 00))
+		{
 
-			if (address == _PIC32Mn_STARTFLASH)
+			if (hex.report.add_lsw > lsw_address_max)
 			{
-				_have_data_ = 1;
+				lsw_address_max = hex.report.add_lsw;
 			}
 
-#if DEBUG == 1
-			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
-#endif
-		}
-		else if (hex.report.report == 00 & _have_data_)
-		{
-
-			if (address == _PIC32Mn_STARTFLASH)
+			if (hex.report.add_lsw != last_lsw_address)
 			{
-				// find the highest address to stop the loop
-				if (hex.report.add_lsw > lsw_address_max)
-				{
-					lsw_address_max = hex.report.add_lsw;
-				}
-
-				if (hex.report.add_lsw != last_lsw_address)
-				{
-					continue;
-				}
-				else
-				{
-					// adjust the last address by 0x10 for 4 byte boundries
-#if DEBUG == 2
-					printf("[%04x][%04x] [%04x]\n", hex.report.add_lsw, last_lsw_address, lsw_address_max);
-#endif
-					last_lsw_address += 0x10;
-
-					//  data resides in this row start to add to data
-					for (k = 0; k < hex.report.data_quant; k++)
-					{
-#if DEBUG == 1
-						*(flash_ptr) = line[k + 4];
-						printf("[%02x]", *(flash_ptr++));
-#else
-						*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
-#endif
-						count++;
-					}
-				}
+				continue;
 			}
-		}
-#if DEBUG == 1
-		printf("\n");
-#endif
 
-		if (count > size)
-		{
-			printf("SIZE!!\n");
-			break;
-		}
+			// adjust the last address by 0x10 for 4 byte boundries
+			printf("\t[%04x][%04x] [%04x]\n", hex.report.add_lsw, last_lsw_address, lsw_address_max);
 
-		// sanity checks
-		if (c_ == EOF)
-		{
-			// start at the begining of the file
-			fseek(fp, 0, SEEK_SET);
-			printf("EOF!\n");
-			break;
+			//  data resides in this row start to add to data
+			for (k = 0; k < hex.report.data_quant; k++)
+			{
+				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
+				count++;
+			}
 		}
 
 		// hex file report 01 is end of file EXIT loop
@@ -937,18 +902,23 @@ static uint32_t locate_address_in_file(FILE *fp)
 			// printf("Starting over...\n");
 			if (last_lsw_address > lsw_address_max)
 			{
+			// start at the begining of the file
+			fseek(fp, 0, SEEK_SET);
+			// printf("Starting over...\n");
+			last_lsw_address += 2;
+			if (last_lsw_address > lsw_address_max)
+			{
 				printf("End of hex!\n");
 				break;
 			}
 		}
 	}
-
 	printf("Buffer count:= %u | file length = %u\n", count, size);
 
 	return count;
 }
 
-static uint32_t file_byte_count(FILE *fp)
+uint32_t file_byte_count(FILE *fp)
 {
 	uint32_t size = 0;
 
