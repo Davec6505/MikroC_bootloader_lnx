@@ -782,9 +782,13 @@ static uint32_t locate_address_in_file(FILE *fp)
 	// function vars
 	uint16_t i = 0, j = 0;
 
-	static uint16_t k = 0;
-	static uint16_t lsw_address_max = 0;
-	static uint16_t last_lsw_address = 0;
+	uint16_t k = 0;
+	uint16_t lsw_address_max = 0;
+	uint16_t inc_lsw_addres = 0;
+	uint16_t last_lsw_address = 0;
+	uint16_t lsw_address_subtract_result = 0;
+	uint16_t last_data_quantity = 0;
+	uint16_t quantity_diff = 0;
 
 	static uint32_t count = 0;
 	static uint32_t address = 0;
@@ -820,7 +824,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 	fseek(fp, 0, SEEK_SET);
 
 	count = 0;
-	last_lsw_address = 0x00;
+	inc_lsw_addres = 0x00;
 
 	// run until end of file unless told otherwise.
 	// The purpose is to strip out data bytes after the
@@ -829,7 +833,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 	{
 		i = j = 0;
 		// ¬k = 0;
-		memset(line, 0, sizeof(line));
+		memset(line, 0xff, sizeof(line));
 		while (c_ = fgetc(fp))
 		{
 
@@ -879,13 +883,22 @@ static uint32_t locate_address_in_file(FILE *fp)
 				lsw_address_max = hex.report.add_lsw;
 			}
 
-			if (hex.report.add_lsw != last_lsw_address)
+			if (hex.report.add_lsw != inc_lsw_addres)
 			{
 				continue;
 			}
 
+			lsw_address_subtract_result = inc_lsw_addres - last_lsw_address;
+			quantity_diff = lsw_address_subtract_result - last_data_quantity;
+			if (quantity_diff > 0)
+			{
+				for (k = 0; k < quantity_diff; k++)
+				{
+					*(flash_ptr++) = 0xff;
+				}
+			}
 			// adjust the last address by 0x10 for 4 byte boundries
-			printf("\t[%04x][%04x] [%04x]\n", hex.report.add_lsw, last_lsw_address, lsw_address_max);
+			printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
 
 			//  data resides in this row start to add to data
 			for (k = 0; k < hex.report.data_quant; k++)
@@ -893,6 +906,9 @@ static uint32_t locate_address_in_file(FILE *fp)
 				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
 				count++;
 			}
+
+			last_data_quantity = hex.report.data_quant;
+			last_lsw_address = inc_lsw_addres;
 		}
 
 		// hex file report 01 is end of file EXIT loop
@@ -901,8 +917,8 @@ static uint32_t locate_address_in_file(FILE *fp)
 			// start at the begining of the file
 			fseek(fp, 0, SEEK_SET);
 			// printf("Starting over...\n");
-			last_lsw_address += 2;
-			if (last_lsw_address > lsw_address_max)
+			inc_lsw_addres += 2;
+			if (inc_lsw_addres > lsw_address_max)
 			{
 				printf("End of hex!\n");
 				break;
