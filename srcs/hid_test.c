@@ -42,7 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-#define DEBUG 2
+#define DEBUG 0
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -264,12 +264,14 @@ int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle
 
 	if (bytes_sent >= 0)
 	{
+#if DEBUG == 1
 		printf("Output report data sent:\n");
 		for (i = 0; i < bytes_sent; i++)
 		{
 			printf("%02x ", data_out[i]);
 		}
 		printf("\n");
+#endif
 
 		// Request data from the device.
 
@@ -285,12 +287,14 @@ int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle
 
 		if (bytes_received >= 0)
 		{
+#if DEBUG == 1
 			printf("Input report data received:\n");
 			for (i = 0; i < bytes_received; i++)
 			{
 				printf("%02x ", data_in[i]);
 			}
 			printf("\n");
+#endif
 		}
 		else
 		{
@@ -335,13 +339,14 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 
 	if (result >= 0)
 	{
+#if DEBUG == 1
 		printf("Data sent via interrupt transfer:\n");
 		for (i = 0; i < bytes_transferred; i++)
 		{
 			printf("%02x ", data_out[i]);
 		}
 		printf("\n");
-
+#endif
 		// Read data from the device.
 
 		result = libusb_interrupt_transfer(
@@ -356,13 +361,14 @@ int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_hand
 		{
 			if (bytes_transferred > 0)
 			{
+#if DEBUG == 1
 				printf("Data received via interrupt transfer:\n");
 				for (i = 0; i < bytes_transferred; i++)
 				{
 					printf("%02x ", data_in[i]);
 				}
 				printf("\n");
-
+#endif
 				TBootInfo bootinfo_t = {0};
 
 				bootInfo_buffer(&bootinfo_t, data_in);
@@ -412,12 +418,14 @@ int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *da
 
 	if (result >= 0 | out_only > 0)
 	{
+#if DEBUG == 1
 		printf("Data sent via interrupt transfer:\n");
 		for (i = 0; i < bytes_transferred; i++)
 		{
 			printf("%02x ", data_out[i] & 0xff);
 		}
 		printf("\n");
+#endif
 
 		if (out_only > 0)
 			return result;
@@ -436,12 +444,14 @@ int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *da
 		{
 			if (bytes_transferred > 0)
 			{
+#if DEBUG == 1
 				printf("Data received via interrupt transfer:\n");
 				for (i = 0; i < bytes_transferred; i++)
 				{
 					printf("%02x ", data_in[i] & 0xff);
 				}
 				printf("\n");
+#endif
 			}
 			else
 			{
@@ -451,7 +461,7 @@ int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *da
 		}
 		else
 		{
-			fprintf(stderr, "Error receiving data via interrupt transfer %d\n", result);
+			fprintf(stderr, "mcu rebooted! %d\n", result); //"Error receiving data via interrupt transfer %d\n", result);
 			return result;
 		}
 	}
@@ -493,7 +503,6 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 	static uint16_t hex_load_limit = 0;
 	static uint16_t hex_load_tracking = 0;
 	static uint16_t hex_load_modulo = 0;
-	uint16_t iterate = 0;
 
 	// file handling
 	FILE *fp;
@@ -537,8 +546,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 			break;
 		case cmdNON:
-			_out_only = 0;
-			printf("\n\tEnter the path of the hex file... ");
+			_out_only = 0; // expect a data response back from device
+			printf("\nEnter the path of the hex file... ");
 			fgets(path, sizeof(path), stdin);
 			size_t len = strlen(path);
 
@@ -549,7 +558,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 
 			// show the path sanity check
-			printf("\n%s\n", path);
+			printf("\n%s\n^z to stop.", path);
 			fp = fopen(path, "r");
 
 			if (fp == NULL)
@@ -574,7 +583,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			// hex loading preperation
 			// usb interrupt transfer send 64 bytes at a time
 			hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-			hex_load_modulo = size % MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+			// hex_load_modulo = size % MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			hex_load_percent = hex_load_limit / 100;
 			printf("percent:= %u\n", hex_load_percent);
 
@@ -611,7 +620,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 			break;
 		case cmdERASE:
-			_out_only = 0;
+			_out_only = 0; // expect a data response back from device
 			// bootloader needs startaddress "page boundry" and quantity of pages to to erase
 			// erase for MikroC starts high and subracts from quantity after each page has
 			// been erased and quantity == 0
@@ -637,27 +646,21 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 				data_out[i] = 0x0;
 			}
 
+			// reset the pointer position
 			flash_ptr = flash_ptr_start;
 			break;
 		case cmdHEX:
-
-			if (hex_load_tracking == hex_load_limit - 1)
-			{
-				iterate = hex_load_modulo;
-			}
-			else
-			{
-				iterate = MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-			}
-			_out_only = 1;
-
+			_out_only = 1; // expect no data back continously stream data.
+#if DEBUG == 2
 			printf("[%d][%d][%d]\n", hex_load_tracking, hex_load_modulo, iterate);
+#endif
 			// use the flash buffer to stream 64 byte slices at a time
-			// load_hex_buffer(data_out, iterate);
-			for (uint32_t j = 0; j < MAX_INTERRUPT_OUT_TRANSFER_SIZE; j++)
-			{
-				data_out[j] = *(flash_ptr++);
-			}
+			load_hex_buffer(data_out, MAX_INTERRUPT_OUT_TRANSFER_SIZE);
+			/*	for (uint32_t j = 0; j < MAX_INTERRUPT_OUT_TRANSFER_SIZE; j++)
+				{
+					data_out[j] = *(flash_ptr++);
+				}
+				*/
 			hex_load_tracking++;
 
 			if (hex_load_tracking > hex_load_limit)
@@ -741,14 +744,6 @@ void load_hex_buffer(char *data, uint16_t iterable)
 	{
 		*(data + i) = *(flash_ptr++);
 	}
-	/*if (iterable < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
-	{
-		while (i < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
-		{
-			*(data + i) = -1;
-			i++;
-		}
-	}*/
 }
 
 /*Display the boot info need for erase and write data*/
@@ -781,11 +776,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 {
 	// function vars
 	uint16_t i = 0, j = 0;
-<<<<<<< HEAD
-	static uint16_t k = 0;
-	static volatile uint32_t count = 0;
-	static uint32_t address = 0UL;
-=======
 
 	uint16_t k = 0;
 	uint16_t lsw_address_max = 0;
@@ -797,7 +787,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 	static uint32_t count = 0;
 	static uint32_t address = 0;
->>>>>>> patch1
 	uint32_t size = 0;
 
 	int c_ = 0;
@@ -880,42 +869,12 @@ static uint32_t locate_address_in_file(FILE *fp)
 		{
 			hex.add_msw = swap_wordbytes(hex.add_msw);
 			address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
-<<<<<<< HEAD
-=======
 		}
 		else if ((address == _PIC32Mn_STARTFLASH) && (hex.report.report == 00))
 		{
->>>>>>> patch1
 
 			if (hex.report.add_lsw > lsw_address_max)
 			{
-<<<<<<< HEAD
-				_have_data_ = 1;
-				printf("%d\n", _have_data_);
-			}
-
-#if DEBUG == 1
-			printf("[%02x][%04x][%02x][%04x] = [%08x] ", hex.data_quant, hex.add_lsw, hex.report, hex.add_msw, address);
-#endif
-		}
-		else if (hex.report.report == 00 & _have_data_)
-		{
-			if (address == _PIC32Mn_STARTFLASH)
-			{
-				// memcpy(flash_buffer, line + 4, hex.data_quant);
-				//  data resides in this row start to add to data
-				for (k = 0; k < hex.report.data_quant; k++)
-				{
-#if DEBUG == 1
-					*(flash_ptr) = line[k + 4];
-					printf("[%02x]", *(flash_ptr++));
-#endif
-#ifndef DEBUG
-					*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
-#endif
-					count++;
-				}
-=======
 				lsw_address_max = hex.report.add_lsw;
 			}
 
@@ -934,14 +893,13 @@ static uint32_t locate_address_in_file(FILE *fp)
 				}
 			}
 			// adjust the last address by 0x10 for 4 byte boundries
-			printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
+			//	printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
 
 			//  data resides in this row start to add to data
 			for (k = 0; k < hex.report.data_quant; k++)
 			{
 				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
 				count++;
->>>>>>> patch1
 			}
 
 			last_data_quantity = hex.report.data_quant;
