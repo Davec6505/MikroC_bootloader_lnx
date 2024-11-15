@@ -42,7 +42,7 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 /*
  * uncoment to report hex file stripping and buffer conditioning..
  */
-// #define DEBUG
+#define DEBUG 2
 
 #define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
 #define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
@@ -489,7 +489,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 
 	// hex loading
 	static uint16_t hex_load_percent = 0;
-	static uint16_t hex_load_percent_last = 0;
+	// static uint16_t hex_load_percent_last = 0;
 	static uint16_t hex_load_limit = 0;
 	static uint16_t hex_load_tracking = 0;
 	static uint16_t hex_load_modulo = 0;
@@ -542,11 +542,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			fgets(path, sizeof(path), stdin);
 			size_t len = strlen(path);
 
+			// remove the backslashes from path
 			if (len > 0 && path[len - 1] == '\n')
 			{
 				path[len - 1] = '\0'; // remove \n
 			}
 
+			// show the path sanity check
 			printf("\n%s\n", path);
 			fp = fopen(path, "r");
 
@@ -570,6 +572,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			}
 
 			// hex loading preperation
+			// usb interrupt transfer send 64 bytes at a time
 			hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			hex_load_modulo = size % MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			hex_load_percent = hex_load_limit / 100;
@@ -623,7 +626,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			break;
 		case cmdWRITE:
 			_out_only = 1;
-			hex_load_percent_last = 0;
+			// hex_load_percent_last = 0;
 			hex_load_tracking = 0;
 			data_out[0] = 0x0f;
 			data_out[1] = (char)cmdWRITE;
@@ -633,13 +636,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			{
 				data_out[i] = 0x0;
 			}
+
+			flash_ptr = flash_ptr_start;
 			break;
 		case cmdHEX:
-
-			if (hex_load_tracking > (hex_load_percent_last + hex_load_percent))
-			{
-				hex_load_percent_last = hex_load_tracking;
-			}
 
 			if (hex_load_tracking == hex_load_limit - 1)
 			{
@@ -650,8 +650,14 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 				iterate = MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			}
 			_out_only = 1;
+
+			printf("[%d][%d][%d]\n", hex_load_tracking, hex_load_modulo, iterate);
 			// use the flash buffer to stream 64 byte slices at a time
-			load_hex_buffer(data_out, iterate);
+			// load_hex_buffer(data_out, iterate);
+			for (uint32_t j = 0; j < MAX_INTERRUPT_OUT_TRANSFER_SIZE; j++)
+			{
+				data_out[j] = *(flash_ptr++);
+			}
 			hex_load_tracking++;
 
 			if (hex_load_tracking > hex_load_limit)
@@ -735,14 +741,14 @@ void load_hex_buffer(char *data, uint16_t iterable)
 	{
 		*(data + i) = *(flash_ptr++);
 	}
-	if (iterable < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
+	/*if (iterable < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
 	{
 		while (i < MAX_INTERRUPT_OUT_TRANSFER_SIZE)
 		{
 			*(data + i) = -1;
 			i++;
 		}
-	}
+	}*/
 }
 
 /*Display the boot info need for erase and write data*/
@@ -774,12 +780,26 @@ void bootInfo_buffer(void *boot_info, const void *buffer)
 static uint32_t locate_address_in_file(FILE *fp)
 {
 	// function vars
-	volatile uint8_t _have_data_ = 0;
 	uint16_t i = 0, j = 0;
+<<<<<<< HEAD
 	static uint16_t k = 0;
 	static volatile uint32_t count = 0;
 	static uint32_t address = 0UL;
+=======
+
+	uint16_t k = 0;
+	uint16_t lsw_address_max = 0;
+	uint16_t inc_lsw_addres = 0;
+	uint16_t last_lsw_address = 0;
+	uint16_t lsw_address_subtract_result = 0;
+	uint16_t last_data_quantity = 0;
+	uint16_t quantity_diff = 0;
+
+	static uint32_t count = 0;
+	static uint32_t address = 0;
+>>>>>>> patch1
 	uint32_t size = 0;
+
 	int c_ = 0;
 	unsigned char c = '\0';
 
@@ -801,15 +821,16 @@ static uint32_t locate_address_in_file(FILE *fp)
 	size = file_byte_count(fp);
 	if (size > 0)
 	{
-		flash_ptr = (uint8_t *)malloc(sizeof(uint8_t) * size);
+		flash_ptr = (uint8_t *)malloc((sizeof(uint8_t) * size) + 10);
 		// keep track of the starting point
 		flash_ptr_start = flash_ptr;
 	}
 
-	// start at the begining of the file
+	// start at the begining of the file and reset all relevant vars
 	fseek(fp, 0, SEEK_SET);
-	_have_data_ = 0;
+
 	count = 0;
+	inc_lsw_addres = 0x00;
 
 	// run until end of file unless told otherwise.
 	// The purpose is to strip out data bytes after the
@@ -818,6 +839,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 	{
 		i = j = 0;
 		// ¬k = 0;
+		memset(line, 0xff, sizeof(line));
 		while (c_ = fgetc(fp))
 		{
 
@@ -852,14 +874,22 @@ static uint32_t locate_address_in_file(FILE *fp)
 		// extract byte count and address and report type
 		memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
 
+		hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
+
 		if (hex.report.report == 0x02 | hex.report.report == 0x04)
 		{
-			hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
 			hex.add_msw = swap_wordbytes(hex.add_msw);
 			address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
+<<<<<<< HEAD
+=======
+		}
+		else if ((address == _PIC32Mn_STARTFLASH) && (hex.report.report == 00))
+		{
+>>>>>>> patch1
 
-			if (address == _PIC32Mn_STARTFLASH)
+			if (hex.report.add_lsw > lsw_address_max)
 			{
+<<<<<<< HEAD
 				_have_data_ = 1;
 				printf("%d\n", _have_data_);
 			}
@@ -885,33 +915,53 @@ static uint32_t locate_address_in_file(FILE *fp)
 #endif
 					count++;
 				}
+=======
+				lsw_address_max = hex.report.add_lsw;
 			}
-		}
-#if DEBUG == 1
-		printf("\n");
-#endif
 
-		if (count > size)
-		{
-			printf("SIZE!!\n");
-			break;
-		}
+			if (hex.report.add_lsw != inc_lsw_addres)
+			{
+				continue;
+			}
 
-		// sanity checks
-		if (c_ == EOF)
-		{
-			printf("EOF!\n");
-			break;
+			lsw_address_subtract_result = inc_lsw_addres - last_lsw_address;
+			quantity_diff = lsw_address_subtract_result - last_data_quantity;
+			if (quantity_diff > 0)
+			{
+				for (k = 0; k < quantity_diff; k++)
+				{
+					*(flash_ptr++) = 0xff;
+				}
+			}
+			// adjust the last address by 0x10 for 4 byte boundries
+			printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
+
+			//  data resides in this row start to add to data
+			for (k = 0; k < hex.report.data_quant; k++)
+			{
+				*(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
+				count++;
+>>>>>>> patch1
+			}
+
+			last_data_quantity = hex.report.data_quant;
+			last_lsw_address = inc_lsw_addres;
 		}
 
 		// hex file report 01 is end of file EXIT loop
 		if (hex.report.report == 0x01)
 		{
-			printf("End of hex!\n");
-			break;
+			// start at the begining of the file
+			fseek(fp, 0, SEEK_SET);
+			// printf("Starting over...\n");
+			inc_lsw_addres += 2;
+			if (inc_lsw_addres > lsw_address_max)
+			{
+				printf("End of hex!\n");
+				break;
+			}
 		}
 	}
-
 	printf("Buffer count:= %u | file length = %u\n", count, size);
 
 	return count;
