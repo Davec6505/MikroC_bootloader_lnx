@@ -489,7 +489,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 
 	// hex loading
 	static uint16_t hex_load_percent = 0;
-	//static uint16_t hex_load_percent_last = 0;
+	// static uint16_t hex_load_percent_last = 0;
 	static uint16_t hex_load_limit = 0;
 	static uint16_t hex_load_tracking = 0;
 	static uint16_t hex_load_modulo = 0;
@@ -542,11 +542,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			fgets(path, sizeof(path), stdin);
 			size_t len = strlen(path);
 
+			// remove the backslashes from path
 			if (len > 0 && path[len - 1] == '\n')
 			{
 				path[len - 1] = '\0'; // remove \n
 			}
 
+			// show the path sanity check
 			printf("\n%s\n", path);
 			fp = fopen(path, "r");
 
@@ -624,7 +626,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			break;
 		case cmdWRITE:
 			_out_only = 1;
-			//hex_load_percent_last = 0;
+			// hex_load_percent_last = 0;
 			hex_load_tracking = 0;
 			data_out[0] = 0x0f;
 			data_out[1] = (char)cmdWRITE;
@@ -634,14 +636,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 			{
 				data_out[i] = 0x0;
 			}
+
+			flash_ptr = flash_ptr_start;
 			break;
 		case cmdHEX:
 
-	/*  	if (hex_load_tracking > (hex_load_percent_last + hex_load_percent))
-			{
-				hex_load_percent_last = hex_load_tracking;
-			}
-     */
 			if (hex_load_tracking == hex_load_limit - 1)
 			{
 				iterate = hex_load_modulo;
@@ -651,8 +650,14 @@ void setupChiptoBoot(struct libusb_device_handle *devh)
 				iterate = MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 			}
 			_out_only = 1;
+
+			printf("[%d][%d][%d]\n", hex_load_tracking, hex_load_modulo, iterate);
 			// use the flash buffer to stream 64 byte slices at a time
-			load_hex_buffer(data_out, iterate);
+			// load_hex_buffer(data_out, iterate);
+			for (uint32_t j = 0; j < MAX_INTERRUPT_OUT_TRANSFER_SIZE; j++)
+			{
+				data_out[j] = *(flash_ptr++);
+			}
 			hex_load_tracking++;
 
 			if (hex_load_tracking > hex_load_limit)
@@ -774,7 +779,7 @@ void bootInfo_buffer(void *boot_info, const void *buffer)
  */
 static uint32_t locate_address_in_file(FILE *fp)
 {
-// function vars
+	// function vars
 	uint16_t i = 0, j = 0;
 
 	static uint16_t k = 0;
@@ -824,6 +829,7 @@ static uint32_t locate_address_in_file(FILE *fp)
 	{
 		i = j = 0;
 		// ¬k = 0;
+		memset(line, 0, sizeof(line));
 		while (c_ = fgetc(fp))
 		{
 
@@ -907,8 +913,6 @@ static uint32_t locate_address_in_file(FILE *fp)
 
 	return count;
 }
-
-
 
 static uint32_t file_byte_count(FILE *fp)
 {
