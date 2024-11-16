@@ -1,6 +1,14 @@
 # MikroC_bootloader_lnx
 A work in progress - pic32 bootloader.
 
+
+Usage:
+  : run the application suppling the path to the file
+    ,/hit_test ~/path to file
+
+
+
+
 References taken for this project include:
  : PIC32MZ1024EFH64 and PIC32MX2048EFH100 datasheets.
  : http://ww1.microchip.com/downloads/en/devicedoc/60001115h.pdf.
