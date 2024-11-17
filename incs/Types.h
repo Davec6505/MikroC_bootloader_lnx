@@ -140,8 +140,5 @@ typedef struct
  */
 
 // chip communication handling
-void bootInfo_buffer(void *boot_info, const void *buffer);
-void load_hex_buffer(char *data, uint16_t iterable);
-void setupChiptoBoot(struct libusb_device_handle *devh, char *path);
 
 #endif

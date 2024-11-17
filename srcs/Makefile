@@ -13,12 +13,12 @@
 OS_TYPE	 	:= LINUX
 BUILD_TYPE  = $(RELEASE)
 #BUILD_TYPE  = $(DEBUG)
-MODULE_NAME = hid_test
+MODULE_NAME = mikro_hb
 TARGET_NAME = $(MODULE_NAME)
 
 ROOT_DIR := ..
 OBJ_DIR  := $(ROOT_DIR)/objs
-#/$(MODULE_NAME)
+SRC_DIR  := 
 
 #*****DONT MODIFY BELOW ATTRIBUTES****#
 BUILD_TIMESTAMP = $(shell date +'%d-%m-%Y.%H-%M-%S.%N')

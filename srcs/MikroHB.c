@@ -77,6 +77,10 @@ int exchange_feature_reports_via_control_transfers(libusb_device_handle *devh);
 int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle *devh);
 int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_handle *devh);
 
+void bootInfo_buffer(void *boot_info, const void *buffer);
+void load_hex_buffer(char *data, uint16_t iterable);
+void setupChiptoBoot(struct libusb_device_handle *devh, char *path);
+
 // function prototypes file handling
 static uint32_t locate_address_in_file(FILE *fp);
 static uint32_t file_byte_count(FILE *fp);
