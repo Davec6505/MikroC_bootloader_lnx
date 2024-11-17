@@ -11,8 +11,5 @@
 extern const int INTERFACE_NUMBER;
 
 // function prototypes usb handling
-int exchange_feature_reports_via_control_transfers(libusb_device_handle *devh);
-int exchange_input_and_output_reports_via_control_transfers(libusb_device_handle *devh);
-int exchange_input_and_output_reports_via_interrupt_transfers(libusb_device_handle *devh);
-
+int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *data_out, uint8_t out_only);
 #endif

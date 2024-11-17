@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include "USB.h"
 
-int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *data_out, uint8_t out_only);
 void bootInfo_buffer(void *boot_info, const void *buffer);
 void setupChiptoBoot(struct libusb_device_handle *devh, char *path);
 
