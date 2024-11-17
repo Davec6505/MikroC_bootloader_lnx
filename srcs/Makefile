@@ -69,7 +69,8 @@ endif
 #*****DONT MODIFY ABOVE ATTRIBUTES****#
 
 ifeq ($(CMP),gcc)
- SRCS := $(wildcard *.c)
+ #SRCS := $(wildcard *.c)
+ SRCS := USB.c Utils.c HexFile.c MikroHB.c
  OBJS := $(SRCS:%.c=$(OBJ_DIR)/%.o)
  STDFLAG := -std=c99
 else
@@ -100,14 +101,14 @@ WARN=-Wall -Wextra -Werror -Wwrite-strings -Wno-parentheses -pedantic  -Wno-poin
 CCFLAGS =  $(STDFLAG) $(BUILD_TYPE) $(CC_OPT) $(WARN) $(INC) $(INC_LOCAL)
 
 all: $(TARGET)
-	@echo $(SRCS)
+	@echo $(SRCS) '=' $(OBJS)
 
 $(TARGET): $(OBJS)
 	$(LDXX) $(INC) -o $@  $^
 #$(SYNC)
 
-$(OBJS): $(SRCS)
-	$(CMP) $(CCFLAGS) -o $@ -c $< 
+$(OBJ_DIR)/%.o: %.c
+	$(CMP) $(CCFLAGS) -c $< -o $@  
 
 build_dir:
 	@echo Creating object directory if not exist

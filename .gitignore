@@ -52,5 +52,5 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# ignore directories using dir/ 
+# directories ignored with dir/ 
 other/

@@ -7,6 +7,7 @@
 //  __FLASH_SIZE = 0x00200000;  & __BOOT_FLASH_SIZE = 0x00028000;   1d000000 + ((200000 - 9858)/4000)*4000 == 1d1f4000
 // Boot flash size can be aquired after a compiation of Boot firmware in MikroC Pro
 #define __BOOT_FLASH_SIZE 0x9858
+extern const uint32_t _PIC32Mn_STARTFLASH;
 
 // Supported MCU families/types.
 enum TMcuType
