@@ -26,22 +26,16 @@ Use the -I option if needed to specify the path to the libusb.h header file. For
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
-// #include <libusb-1.0/libusb.h>
 #include <assert.h>
 
 #include <linux/types.h>
 #include <linux/input.h>
-
-// #include <linux/hidraw.h>
 
 // Values for bmRequestType in the Setup transaction's Data packet.
 #include "Types.h"
 #include "HexFile.h"
 #include "Utils.h"
 #include "USB.h"
-
-#define DEBUG 1
 
 const int INTERFACE_NUMBER = 0;
 

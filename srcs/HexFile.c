@@ -8,6 +8,7 @@
 #include "Types.h"
 #include "Utils.h"
 
+// 1 = file size | 2 = address info | 3 = supply the path other than argument
 #define DEBUG 0
 
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
