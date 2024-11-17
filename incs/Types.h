@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#define MAX_CONTROL_IN_TRANSFER_SIZE 64
+#define MAX_CONTROL_OUT_TRANSFER_SIZE 64
+#define MAX_INTERRUPT_IN_TRANSFER_SIZE 64
+#define MAX_INTERRUPT_OUT_TRANSFER_SIZE 64
+
 // Bootloader physical start address equasion:
 //  __FLASH_SIZE = 0x00200000;  & __BOOT_FLASH_SIZE = 0x00028000;   1d000000 + ((200000 - 9858)/4000)*4000 == 1d1f4000
 // Boot flash size can be aquired after a compiation of Boot firmware in MikroC Pro
@@ -140,5 +145,6 @@ typedef struct
  */
 
 // chip communication handling
+extern const uint32_t _PIC32Mn_STARTFLASH;
 
 #endif
