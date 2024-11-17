@@ -42,10 +42,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     TBootInfo bootinfo_t = {0};
 
     // hex loading
-    static uint16_t hex_load_percent = 0;
-    static uint16_t hex_load_limit = 0;
-    static uint16_t hex_load_tracking = 0;
-    static uint16_t hex_load_modulo = 0;
+    // uint16_t hex_load_percent = 0;
+    uint16_t hex_load_limit = 0;
+    uint16_t hex_load_tracking = 0;
+    uint16_t hex_load_modulo = 0;
 
     // file handling
     FILE *fp;
@@ -115,7 +115,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 }
 
                 // show the path sanity check
-                printf("\n%s\n^z to stop.", path);
+                printf("\n%s\n", path);
                 fp = fopen(path, "r");
 
                 if (fp == NULL)
@@ -140,9 +140,6 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 // hex loading preperation
                 // usb interrupt transfer send 64 bytes at a time
                 hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-                // hex_load_modulo = size % MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-                hex_load_percent = hex_load_limit / 100;
-                printf("percent:= %u\n", hex_load_percent);
 
                 // erasing preperation
                 _blocks_temp = (float)size / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
@@ -173,7 +170,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 }
                 else
                 {
-                    printf("flash erase start [%08x]\tbootflash start := [%08x]\n", _temp_flash_erase_, _boot_flash_start);
+                    printf("flash erase start [%08x]\nbootflash start := [%08x]\n", _temp_flash_erase_, _boot_flash_start);
                 }
             }
             break;
@@ -231,7 +228,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             break;
             case cmdREBOOT:
             {
-                _out_only = 0;
+                _out_only = 2;
                 printf("\n");
                 // free memory created for flas_pointer
                 if (flash_ptr != NULL)

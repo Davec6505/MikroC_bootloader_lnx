@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <libusb-1.0/libusb.h>
+#include "USB.h"
 
 int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *data_out, uint8_t out_only);
 void bootInfo_buffer(void *boot_info, const void *buffer);

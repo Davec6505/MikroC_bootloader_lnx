@@ -70,7 +70,7 @@ endif
 
 ifeq ($(CMP),gcc)
  #SRCS := $(wildcard *.c)
- SRCS := Utils.c HexFile.c MikroHB.c
+ SRCS := USB.c Utils.c HexFile.c MikroHB.c
  OBJS := $(SRCS:%.c=$(OBJ_DIR)/%.o)
  STDFLAG := -std=c99
 else
