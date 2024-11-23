@@ -54,3 +54,4 @@ dkms.conf
 
 # directories ignored with dir/ 
 other/
+.fake
