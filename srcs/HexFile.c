@@ -9,7 +9,7 @@
 #include "Utils.h"
 
 // 1 = file size | 2 = address info | 3 = supply the path other than argument
-#define DEBUG 0
+#define DEBUG 3
 
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 
@@ -103,7 +103,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             case cmdNON:
             {
                 _out_only = 0; // expect a data response back from device
-#if DEBUG == 3
+#if DEBUG == 5
                 printf("\nEnter the path of the hex file... ");
                 fgets(path, sizeof(path), stdin);
 #endif
@@ -213,7 +213,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             {
                 _out_only = 1; // expect no data back continously stream data.
 #if DEBUG == 2
-                printf("[%d][%d][%d]\n", hex_load_tracking, hex_load_modulo, iterate);
+                printf("[%d][%d]\n", hex_load_tracking, hex_load_modulo);
 #endif
                 // use the flash buffer to stream 64 byte slices at a time
                 load_hex_buffer(data_out, MAX_INTERRUPT_OUT_TRANSFER_SIZE);
@@ -338,7 +338,13 @@ void load_hex_buffer(char *data, uint16_t iterable)
     for (i = 0; i < iterable; i++)
     {
         *(data + i) = *(flash_ptr++);
+#if DEBUG == 3
+        printf("%02x", *(data + i) & 0xff);
+#endif
     }
+#if DEBUG == 3
+    printf("\n");
+#endif
 }
 
 /*
@@ -445,16 +451,21 @@ uint32_t locate_address_in_file(FILE *fp)
                     *(flash_ptr++) = 0xff;
                 }
             }
-#if DEBUG == 2
+#if DEBUG == 1
             printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
 #endif
             //  data resides in this row start to add to data
             for (k = 0; k < hex.report.data_quant; k++)
             {
                 *(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
+#if DEBUG == 1
+                printf("%02x ", *flash_ptr);
+#endif
                 count++;
             }
-
+#if DEBUG == 1
+            printf("\n");
+#endif
             // Save a copy of the data quantity and the last current
             // address for next comparison.
             last_data_quantity = hex.report.data_quant;
@@ -525,8 +536,8 @@ void file_extract_line(FILE *fp, char *buf, int fp_result)
         {
             *(buf + i) = transform_2chars_1bin(temp_);
             j = 0;
-#if DEBUG == 1
-            printf("[%02x] ", line[i]);
+#if DEBUG == 4
+            printf("[%02x] ", buf[i]);
 #endif
             i++;
         }
