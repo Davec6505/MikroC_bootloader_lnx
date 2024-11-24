@@ -62,8 +62,20 @@ int main(int argc, char **argv)
 	else
 	{
 		size_t len_s = strlen(argv[1]);
+
+#if DEBUG == 5
+		printf("\nEnter the path of the hex file... ");
+		fgets(path, sizeof(path), stdin);
+#endif
+
+		// remove the carriage return and or newline feed from path if it exists
+		if (len_s > 0 && (argv[1][len_s - 1] == '\r' || argv[1][len_s - 1] == '\n'))
+		{
+			argv[1][len_s - 1] = '\0'; // remove \r | \n
+		}
 		strcpy(_path, argv[1]);
-		printf("%s\n", _path);
+		// show the path? sanity check.
+		printf("\t*** %s ***\n", _path);
 	}
 
 	result = libusb_init_context(NULL, NULL, 0);
