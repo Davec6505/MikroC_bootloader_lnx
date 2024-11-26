@@ -9,7 +9,7 @@
 #include "Utils.h"
 
 // 1 = file size | 2 = address info | 3 = supply the path other than argument
-#define DEBUG 3
+#define DEBUG 0
 
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 const uint32_t _PIC32Mn_BOOTFLASH = 0x1D1F0000;
@@ -357,7 +357,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             case cmdNON:
                 if (trigger == 1)
                 {
-                    tcmd_t = cmdSYNC;
+                    if (vector_index == 0)
+                        tcmd_t = cmdSYNC;
+                    else
+                        tcmd_t = cmdERASE;
                     trigger = 0;
                 }
                 break;
@@ -475,6 +478,11 @@ uint32_t locate_address_in_file(FILE *fp)
             mem_created = 65535; //((sizeof(uint8_t) * size) + 10);
             flash_ptr = (uint8_t *)malloc(mem_created);
             flash_ptr_start = flash_ptr;
+
+            if (flash_ptr != NULL)
+            {
+                memset(flash_ptr, 0xff, mem_created - 1);
+            }
 
             if (flash_ptr_start == NULL)
             {
