@@ -51,3 +51,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# directories ignored with dir/ 
+other/
+.fake

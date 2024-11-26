@@ -2,6 +2,31 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "build",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "make",
+      "cwd": "${cwd}"
+    },
+    {
+      "name": "flash",
+      "type": "PowerShell",
+      "request": "launch",
+      "preLaunchTask": "load",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "build program",
+      "type": "PowerShell",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "cwd": "${workspaceFolder}",
+      "script": "sudo ${workspaceFolder}/bins/mikro_hb",
+      "args": [
+        "${workspaceFolder}/bins/fcx.hex"
+      ]
+    },
+    {
       "name": "C/C++ Runner: Debug Session",
       "type": "cppdbg",
       "request": "launch",
@@ -9,7 +34,7 @@
       "stopAtEntry": false,
       "externalConsole": false,
       "cwd": "/home/Automation/GIT/MikroC_bootloader_lnx/srcs",
-      "program": "/home/Automation/GIT/MikroC_bootloader_lnx/srcs/build/Release/outRelease",
+      "program": "/home/Automation/GIT/MikroC_bootloader_lnx/srcs/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
