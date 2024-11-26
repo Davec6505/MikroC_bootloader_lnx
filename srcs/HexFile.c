@@ -12,9 +12,8 @@
 #define DEBUG 3
 
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
-const uint32_t _PIC32Mn_BOOTFLASH = 0x1D1F0000;
-const uint32_t _PIC32Mn_STARTCONF = 0x1FC00000;
-const uint32_t vector[] = {_PIC32Mn_STARTFLASH, _PIC32Mn_BOOTFLASH, _PIC32Mn_STARTCONF};
+const uint32_t _PIC32Mn_STARTCONF  = 0x1FC00000;
+const uint32_t vector[] = {_PIC32Mn_STARTFLASH, _PIC32Mn_STARTFLASH, _PIC32Mn_STARTCONF};
 int vector_index = 0;
 
 // memory to hold flash data
@@ -172,15 +171,25 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     exit(EXIT_FAILURE);
                 }
 
+
                 // hex loading preperation
                 // usb interrupt transfer send 64 bytes at a time
                 if (vector_index == 0)
                 {
+
                     hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
                     // erasing preperation
                     _blocks_temp = (float)size / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
                     fractional = modf(_blocks_temp, &integer);
                     _blocks_to_flash_ = (uint16_t)integer;
+
+                    //  Work out the boot start vector for a sanity check, MikroC bootloader uses program flash
+                    //  depending on the mcu ie. pic32mz1024efh 0x100000 size
+                    //  0x1d000000 + (((0x100000 - 0x9858)/0x4000)*0x4000)
+                    _boot_flash_start = vector[vector_index] +  
+                                        (((bootinfo_t.ulMcuSize.fValue - __BOOT_FLASH_SIZE) /
+                                        bootinfo_t.uiEraseBlock.fValue.intVal) *
+                                        bootinfo_t.uiEraseBlock.fValue.intVal);
 
                     if (fractional > 0.0)
                     {
@@ -191,6 +200,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                         // erase at least 1 page if there are zero blocks to flash.
                         _blocks_to_flash_ = 1;
                     }
+
+                    _temp_flash_erase_ = (vector[vector_index] + 
+                                        (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
+                   
                 }
                 else if (vector_index == 1)
                 {
@@ -204,15 +217,14 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 #if DEBUG == 3
                 printf("vector indexed at [%02x]\n", vector_index);
 #endif
-                // work out the boot start vector for a sanity check, MikroC bootloader uses program flash
-                _boot_flash_start = vector[vector_index] +
-                                    (((bootinfo_t.ulMcuSize.fValue - __BOOT_FLASH_SIZE) /
-                                      bootinfo_t.uiEraseBlock.fValue.intVal) *
-                                     bootinfo_t.uiEraseBlock.fValue.intVal);
-                _temp_flash_erase_ = (vector[vector_index] + (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
 
                 // erase a whole page 0x4000 for configuration vector
-                if ((vector_index == 1) || (vector_index == 2))
+                if (vector_index == 1)
+                {
+                    _temp_flash_erase_ = (vector[vector_index]+ _boot_flash_start + (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
+                    _blocks_to_flash_ = 1;
+                } 
+                if (vector_index == 2)
                 {
                     _temp_flash_erase_ = (vector[vector_index] + (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
                     _blocks_to_flash_ = 1;
@@ -242,7 +254,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 // been erased and quantity == 0
                 data_out[0] = 0x0f;
                 data_out[1] = (char)cmdERASE;
-                memcpy(data_out + 2, &vector[vector_index], sizeof(uint32_t)); //&_temp_flash_erase_, sizeof(uint32_t));
+                memcpy(data_out + 2, &_temp_flash_erase_, sizeof(uint32_t));
                 memcpy(data_out + 6, &_blocks_to_flash_, sizeof(int16_t));
                 for (int i = 9; i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
                 {
