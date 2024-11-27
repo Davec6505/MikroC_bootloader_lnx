@@ -215,19 +215,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 printf("vector indexed at [%02x]\n", vector_index);
 #endif
 
-                // sanity check flash erase start address, sent from chip if result to large the bootloade firmware will
-                // be erased and render the chip unusable, to recover a programer tool will be needed.
-                if (_temp_flash_erase_ >= _boot_flash_start)
-                {
-                    fprintf(stderr, "block size:= %u\nThis will overwrite bootload firmware... [Y|n]\n Y to continue.\nn to stop.", _blocks_to_flash_);
-                    int res = getchar();
-                    if (res == (int)'n')
-                        exit(EXIT_FAILURE);
-                }
-                else
-                {
-                    printf("flash erase start [%08x]\tblock to flash [%04x]\nbootflash start := [%08x]\n", _temp_flash_erase_, _blocks_to_flash_, _boot_flash_start);
-                }
+                printf("bootaddress_space [%08x]\tflash erase start [%08x]\tblock to flash [%04x]\n", bootaddress_space, _temp_flash_erase_, _blocks_to_flash_);
             }
             break;
             case cmdERASE:
