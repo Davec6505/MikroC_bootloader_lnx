@@ -138,16 +138,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     flash_ptr = flash_ptr_start;
                     overwrite_bootflash_program();
                     flash_ptr = flash_ptr_start;
-                    size = 0x4000;
+                    size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000
 
                     //  Work out the boot start vector for a sanity check, MikroC bootloader uses program flash
                     //  depending on the mcu ie. pic32mz1024efh 0x100000 size
-                    //  0x1d000000 + (((0x100000 - 0x9858)/0x4000)*0x4000)
-                    /* _boot_flash_start = vector[vector_index] +
-                                         (((bootinfo_t.ulMcuSize.fValue - __BOOT_FLASH_SIZE) /
-                                           bootinfo_t.uiEraseBlock.fValue.intVal) *
-                                          bootinfo_t.uiEraseBlock.fValue.intVal);
-                    */
                     _boot_flash_start = bootinfo_t.ulBootStart.fValue & V2P;
                     _boot_flash_start -= bootinfo_t.uiEraseBlock.fValue.intVal;
 
@@ -264,16 +258,16 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 // expect no data back continously stream data.
                 _out_only = 1;
 
-                // use the flash buffer to stream 64 byte slices at a time
-                load_hex_buffer(data_out, MAX_INTERRUPT_OUT_TRANSFER_SIZE);
-
                 hex_load_tracking++;
+                // use the flash buffer to stream 64 byte slices at a time
 
                 if (hex_load_tracking > hex_load_limit)
                 {
                     tcmd_t = cmdREBOOT;
                     _out_only = 0;
                 }
+
+                load_hex_buffer(data_out, MAX_INTERRUPT_OUT_TRANSFER_SIZE);
             }
             break;
             case cmdREBOOT:
@@ -633,7 +627,7 @@ void overwrite_bootflash_program(void)
     int i = 0;
     uint8_t line[16];
     memcpy(line, flash_ptr, 16);
-    for (i = 0; i < (0x4000 + (64 - 16)); i++)
+    for (i = 0; i < (0x4000 - 16); i++)
     {
         *(flash_ptr++) = 0xff;
     }
