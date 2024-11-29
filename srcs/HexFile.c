@@ -12,7 +12,8 @@
 #define DEBUG 0
 
 // boot loader 1st line
-const uint8_t boot_line[] = {0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70};
+const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70},
+                                 {0x0F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70}};
 
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 const uint32_t _PIC32Mn_STARTCONF = 0x1FC00000;
@@ -158,7 +159,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 {
                     size = locate_address_in_file(fp, vector_index);
                     flash_ptr = flash_ptr_start;
-                    memcpy(flash_ptr, &boot_line, sizeof(boot_line));
+                    if (bootinfo_t.ulMcuSize.fValue == MZ2048)
+                        memcpy(flash_ptr, boot_line[0], sizeof(boot_line[0]));
+                    else
+                        memcpy(flash_ptr, boot_line[1], sizeof(boot_line[0]));
 
                     hex_load_limit = 2048 / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
                     _temp_flash_erase_ = (vector[vector_index]); // + (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;

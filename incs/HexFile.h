@@ -7,6 +7,9 @@
 
 #define V2P 0x1FFFFFFF
 
+#define MZ1024 0x100000
+#define MZ2048 0x200000
+
 void bootInfo_buffer(void *boot_info, const void *buffer);
 void setupChiptoBoot(struct libusb_device_handle *devh, char *path);
 
