@@ -9,7 +9,7 @@
 #include "Utils.h"
 
 // 1 = file size | 2 = address info | 3 = supply the path other than argument
-#define DEBUG 0
+#define DEBUG 1
 
 // boot loader 1st line
 const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70},
@@ -142,7 +142,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000
 
                     //  Work out the boot start vector for a sanity check, MikroC bootloader uses program flash
-                    //  depending on the mcu ie. pic32mz1024efh 0x100000 size
+                    //  depending on the mcu ie. pic32mz1024efh 0x100000 in size
                     _boot_flash_start = bootinfo_t.ulBootStart.fValue & V2P;
                     _boot_flash_start -= bootinfo_t.uiEraseBlock.fValue.intVal;
 
@@ -458,7 +458,7 @@ uint32_t locate_address_in_file(FILE *fp, int index)
         // don't want to keep recreating memory, use existing
         if (mem_created == 0)
         {
-            mem_created = 65535; //((sizeof(uint8_t) * size) + 10);
+            mem_created = ((sizeof(uint8_t) * size) + 10);
             flash_ptr = (uint8_t *)malloc(mem_created);
             flash_ptr_start = flash_ptr;
 
@@ -559,7 +559,7 @@ uint32_t locate_address_in_file(FILE *fp, int index)
         {
             // start at the begining of the file
             fseek(fp, 0, SEEK_SET);
-            // printf("Starting over...\n");
+            printf(".");
             inc_lsw_addres += 2;
             if (inc_lsw_addres > lsw_address_max)
             {
