@@ -37,6 +37,33 @@ void overwrite_bootflash_program(void);
  * Find the file to send
  */
 
+/***************************************************
+ * Open the hex file extract each line and iterate
+ * over the data from each line, the data is ASCII,
+ * conver each byte to its binary equivilant,
+ * Get the address MSW and LSW then use the address
+ * to place the data bytes at the index in the
+ * ram buffer, this way the file is only iterated
+ * through once.
+ * 2 buffers are used
+ *  1) program data,
+ *  2) configuration data
+ ***************************************************/
+void condition_hexfile_data(char *path)
+{
+    if (fp == NULL)
+    {
+        fp = fopen(path, "r");
+        if (fp == NULL)
+        {
+            fprintf(stderr, "Could not find or open a file!!\n");
+            return;
+        }
+    }
+    // make sure file starts from begining
+    fseek(fp, 0, SEEK_SET);
+}
+
 void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 {
 
