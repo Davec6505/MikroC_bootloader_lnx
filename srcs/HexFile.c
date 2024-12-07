@@ -63,6 +63,8 @@ void overwrite_bootflash_program(void);
  ***************************************************/
 uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
 {
+    uint32_t prg_mem_last = 0;
+    uint32_t conf_mem_last = 0;
     uint32_t prg_byte_count = 0;
     uint32_t con_byte_count = 0;
     uint32_t count = 0;
@@ -106,7 +108,8 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
     // allocate memory for configuration data, use size for now,
     // once I know how many bytes are allocated to configuration
     // I can reduce this size.
-    conf_ptr = (uint8_t *)malloc(bootinfo->uiWriteBlock.fValue.intVal);
+    conf_ptr = (uint8_t *)malloc(0xffff); // bootinfo->uiWriteBlock.fValue.intVal + 1);
+    memset(conf_ptr, 0xff, 0xffff);
     conf_ptr_start = conf_ptr;
 
     // make sure file starts from begining
@@ -140,18 +143,28 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
 #endif
             if (address >= _PIC32Mn_STARTFLASH && address < _PIC32Mn_STARTCONF)
             {
+                uint32_t temp_prg_add = (address - _PIC32Mn_STARTFLASH);
+                // prg_mem_count += (temp_prg_add - prg_mem_last); //
+                // prg_mem_last = temp_prg_add;
                 prg_mem_count += (uint32_t)hex.report.data_quant;
+                // printf("prg [%u]\n", prg_mem_count);
+
                 for (int k = 0; k < hex.report.data_quant; k++)
                 {
-                    *(prg_ptr + (address - _PIC32Mn_STARTFLASH) + k) = line[k + sizeof(_HEX_REPORT_)];
+                    *(prg_ptr + (temp_prg_add) + k) = line[k + sizeof(_HEX_REPORT_)];
                 }
             }
             else if (address >= _PIC32Mn_STARTCONF)
             {
-                conf_mem_count += (uint32_t)hex.report.data_quant;
+                uint32_t temp_add = address - _PIC32Mn_STARTCONF;
+                // conf_mem_count += (uint32_t)hex.report.data_quant;
+                conf_mem_count += (temp_add - conf_mem_last);
+                conf_mem_last = temp_add;
+                // printf("conf [%u]\n", conf_mem_count);
+
                 for (int k = 0; k < hex.report.data_quant; k++)
                 {
-                    *(conf_ptr + (address - _PIC32Mn_STARTCONF) + k) = line[k + sizeof(_HEX_REPORT_)];
+                    *(conf_ptr + (temp_add) + k) = line[k + sizeof(_HEX_REPORT_)];
                 }
             }
         }
@@ -296,9 +309,9 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                         memcpy(conf_ptr, boot_line[1], sizeof(boot_line[0]));
 
                     // transfer the config data over to program flash data pointer
-                    memcpy(prg_ptr, conf_ptr, bootinfo_t.uiWriteBlock.fValue.intVal);
+                    memcpy(prg_ptr, conf_ptr, 0xffff); // bootinfo_t.uiWriteBlock.fValue.intVal);
 
-                    hex_load_limit = bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    hex_load_limit = 0xffff / 64; // bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     // set the start address to flash erase
                     _temp_flash_erase_ = (vector[vector_index]);
@@ -434,7 +447,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             {
                 _out_only = 2;
 
-#if DEBUG == 6
+#if DEBUG == 0
                 printf("%u : %u\n", prg_mem_count, conf_mem_count);
 #endif
 
