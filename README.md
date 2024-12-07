@@ -269,6 +269,9 @@ Linearize the address portions of the hex file, it does this in 3 stages,
 ///////////////////////////////////////////////////////////////////////////
 //TODO
 
- :Strip down the hex file more efficiently ??
- :Iterrate through the hex file once not 3 times ???
+ :Strip down the hex file more efficiently ??  
+ 
+ == Done, only iterate through file once now, each
+    Address encountered in the hex file offsets the 
+    data position within the data array.
  
