@@ -8,7 +8,11 @@
 #include "Types.h"
 #include "Utils.h"
 
-// 1 = file size | 2 = address info | 3 = supply the path other than argument
+// 1 = file size |
+// 2 = address info |
+// 3 = supply the path other than argument |
+// 4 = Report hex file size, Memory address allocation, transfer file size
+// 6 = print out hex address to ensure iteration is line for line ignoring report type 02 & 04
 #define DEBUG 0
 
 // boot loader 1st line
@@ -24,9 +28,6 @@ uint8_t *prg_ptr = 0;
 uint8_t *prg_ptr_start = 0;
 uint8_t *conf_ptr = 0;
 uint8_t *conf_ptr_start = 0;
-
-uint8_t *flash_ptr = 0;
-uint8_t *flash_ptr_start = 0;
 
 uint32_t mem_created = 0;
 uint32_t bootaddress_space = 0;
@@ -89,7 +90,10 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
 
     // need the size ofthe file to allocate memory for linear buffer
     uint32_t size = file_byte_count(fp);
+
+#if DEBUG == 4
     printf("fc = %u\n", size);
+#endif
 
     // allocate memory to prg_ptr to the size of chars in the file,
     // this isn't quite correct as it will over allocate by the
@@ -130,7 +134,10 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
         else if (hex.report.report == 00)
         {
             address = root_address + hex.report.add_lsw;
+
+#if DEBUG == 6 // 6 to output memory address read from hex file
             printf("%08x\n", address);
+#endif
             if (address >= _PIC32Mn_STARTFLASH && address < _PIC32Mn_STARTCONF)
             {
                 prg_mem_count += (uint32_t)hex.report.data_quant;
@@ -263,7 +270,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     hex_load_limit = bootinfo_t.uiEraseBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     _temp_flash_erase_ = (_boot_flash_start); //+ (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
+
+#if DEBUG == 4
                     printf("%08x : %08x : %08x\n", vector[vector_index], _boot_flash_start, _temp_flash_erase_);
+#endif
+
                     _blocks_to_flash_ = 1;
 
                     bootaddress_space = _boot_flash_start;
@@ -313,7 +324,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     // (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
                 }
 
+#if DEBUG == 4
                 printf("trnsfer size:= %d\n", size);
+#endif
+
                 if (size > 0)
                 {
                     trigger = 1;
@@ -328,8 +342,9 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 
 #if DEBUG == 3
                 printf("vector indexed at [%02x]\n", vector_index);
-#endif
+#elif DEBUG == 4
                 printf("bootaddress_space [%08x]\tflash erase start [%08x]\tblock to flash [%04x]\n", bootaddress_space, _temp_flash_erase_, _blocks_to_flash_);
+#endif
             }
             break;
             case cmdERASE:
@@ -523,169 +538,6 @@ void load_hex_buffer(char *data, uint16_t iterable)
 #if DEBUG == 3
     printf("\n");
 #endif
-}
-
-/*
- * @param FILE pointer t
- *
- * stips each line of the hex file into
- * [data count][address][report type][data / extended address][checksum]
- * add all data bytes to the flash buffer
- *
- * @return  count.of data bytes
- */
-uint32_t locate_address_in_file(FILE *fp, int index)
-{
-    // function vars
-    uint16_t i = 0, j = 0;
-
-    uint16_t k = 0;
-    uint16_t lsw_address_max = 0;
-    uint16_t inc_lsw_addres = 0;
-    uint16_t last_lsw_address = 0;
-    uint16_t lsw_address_subtract_result = 0;
-    uint16_t last_data_quantity = 0;
-    uint16_t quantity_diff = 0;
-
-    static uint32_t count = 0;
-    static uint32_t address = 0;
-    uint32_t size = 0;
-
-    int c_ = 0;
-    unsigned char c = '\0';
-
-    // temp buffers
-    uint8_t line[64] = {0};
-
-    // temp struct of type hex descriptors
-    _HEX_ hex = {0};
-
-    // sanity check on file
-    if (fp == NULL)
-    {
-        printf("No file found...\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // get file size to allocate memory
-    size = file_byte_count(fp);
-    if (size > 0)
-    {
-        // don't want to keep recreating memory, use existing
-        if (mem_created == 0)
-        {
-            mem_created = 65535; //((sizeof(uint8_t) * size) + 10);
-            flash_ptr = (uint8_t *)malloc(mem_created);
-            flash_ptr_start = flash_ptr;
-
-            if (flash_ptr != NULL)
-            {
-                memset(flash_ptr, 0xff, mem_created - 1);
-            }
-
-            if (flash_ptr_start == NULL)
-            {
-                fprintf(stderr, "Start address of internal pointer not set!");
-            }
-        }
-        else
-        {
-            flash_ptr = flash_ptr_start;
-#if DEBUG == 3
-            printf("Memory already created!\n");
-#endif
-        }
-    }
-
-    // start at the begining of the file and reset all relevant vars
-    fseek(fp, 0, SEEK_SET);
-
-    count = 0;
-    inc_lsw_addres = 0x00;
-
-    printf("Vector [%08x]\n", vector[index]);
-
-    // run until end of file unless told otherwise.
-    // The purpose is to strip out data bytes after the
-    // address has been found.
-    while (c_ != EOF)
-    {
-        file_extract_line(fp, line, c_);
-        // extract byte count and address and report type
-        memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
-
-        hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
-
-        if (hex.report.report == 0x02 | hex.report.report == 0x04)
-        {
-            hex.add_msw = swap_wordbytes(hex.add_msw);
-            address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
-        }
-        else if ((address == vector[index]) && (hex.report.report == 00))
-        {
-
-            if (hex.report.add_lsw > lsw_address_max)
-            {
-                lsw_address_max = hex.report.add_lsw;
-            }
-
-            if (hex.report.add_lsw != inc_lsw_addres)
-            {
-                continue;
-            }
-
-            /*
-             * Last address subtracted from current address must equal
-             * previous rows data count, if the result is not equal to
-             * zero then pad the buffer with default flash values 0xff.
-             */
-            lsw_address_subtract_result = inc_lsw_addres - last_lsw_address;
-            quantity_diff = lsw_address_subtract_result - last_data_quantity;
-            if (quantity_diff > 0)
-            {
-                for (k = 0; k < quantity_diff; k++)
-                {
-                    *(flash_ptr++) = 0xff;
-                    count++;
-                }
-            }
-#if DEBUG == 1
-            printf("\t[%04x] [%04x] [%04x] [%04x] \t[%04x]\n", hex.report.add_lsw, last_lsw_address, last_data_quantity, lsw_address_subtract_result, quantity_diff);
-#endif
-            //  data resides in this row start to add to data
-            for (k = 0; k < hex.report.data_quant; k++)
-            {
-                *(flash_ptr++) = line[k + sizeof(_HEX_REPORT_)];
-#if DEBUG == 1
-                printf("%02x ", *flash_ptr);
-#endif
-                count++;
-            }
-#if DEBUG == 1
-            printf("\n");
-#endif
-            // Save a copy of the data quantity and the last current
-            // address for next comparison.
-            last_data_quantity = hex.report.data_quant;
-            last_lsw_address = inc_lsw_addres;
-        }
-
-        // hex file report 01 is end of file EXIT loop
-        if (hex.report.report == 0x01)
-        {
-            // start at the begining of the file
-            fseek(fp, 0, SEEK_SET);
-            // printf("Starting over...\n");
-            inc_lsw_addres += 2;
-            if (inc_lsw_addres > lsw_address_max)
-            {
-                break;
-            }
-        }
-    }
-    printf("Buffer count:= %u | file length = %u\n", count, size);
-
-    return count;
 }
 
 /*
