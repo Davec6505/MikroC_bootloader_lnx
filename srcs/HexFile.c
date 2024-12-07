@@ -12,7 +12,7 @@
 // 2 = address info |
 // 3 = supply the path other than argument |
 // 4 = Report hex file size, Memory address allocation, transfer file size
-// 6 = print out hex address to ensure iteration is line for line ignoring report type 02 & 04
+// 6 = print out hex address to ensure iteration is line for line ignoring report type 02 & 04, hex file byte totals
 #define DEBUG 0
 
 // boot loader 1st line
@@ -29,7 +29,7 @@ uint8_t *prg_ptr_start = 0;
 uint8_t *conf_ptr = 0;
 uint8_t *conf_ptr_start = 0;
 
-uint32_t mem_created = 0;
+// write program memor variable
 uint32_t bootaddress_space = 0;
 
 // keep track of how many bytes have been extracted form each line
@@ -189,7 +189,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     TBootInfo bootinfo_t = {0};
 
     // hex loading
-    // uint16_t hex_load_percent = 0;
+    uint32_t load_calc_result = 0;
     uint16_t hex_load_limit = 0;
     uint16_t hex_load_tracking = 0;
     uint16_t hex_load_modulo = 0;
@@ -245,10 +245,10 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     data_out[i] = 0x0;
                 }
                 // start at address space 1d00
-                mem_created = vector_index = 0;
+                vector_index = 0;
             }
             break;
-            case cmdNON:
+            case cmdNON: // A wait state between commands
             {
                 // expect a data response back from device
                 _out_only = 0;
@@ -256,9 +256,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 // handle address space from vector array, 1st 1d00 then 1fc0
                 if (vector_index == 1) // boot startup page
                 {
-                    prg_ptr = prg_ptr_start;
+
+                    prg_ptr = prg_ptr_start; // reset place holder
+
+                    // pre-condition the hex file for bootloading
                     overwrite_bootflash_program();
-                    prg_ptr = prg_ptr_start;
+
+                    prg_ptr = prg_ptr_start;                      // reset place holder
                     size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000
 
                     //  Work out the boot start vector for a sanity check, MikroC bootloader uses program flash
@@ -274,39 +278,57 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 #if DEBUG == 4
                     printf("%08x : %08x : %08x\n", vector[vector_index], _boot_flash_start, _temp_flash_erase_);
 #endif
-
+                    // pages to flash
                     _blocks_to_flash_ = 1;
-
+                    // write hex data from address
                     bootaddress_space = _boot_flash_start;
                 }
                 else if (vector_index == 2) // config data
                 {
+                    // reset place holders to load from the begining
                     prg_ptr = prg_ptr_start;
                     conf_ptr = conf_ptr_start;
+
+                    // offset decided on memory size of chip
                     if (bootinfo_t.ulMcuSize.fValue == MZ2048)
                         memcpy(conf_ptr, boot_line[0], sizeof(boot_line[0]));
                     else
                         memcpy(conf_ptr, boot_line[1], sizeof(boot_line[0]));
 
+                    // transfer the config data over to program flash data pointer
                     memcpy(prg_ptr, conf_ptr, bootinfo_t.uiWriteBlock.fValue.intVal);
 
                     hex_load_limit = bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
-                    //   + (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
+                    // set the start address to flash erase
                     _temp_flash_erase_ = (vector[vector_index]);
-                    // erase 1 page of data
+
+                    // set erase block to 1 page of data
                     _blocks_to_flash_ = 1;
-                    // boot start address space
+
+                    // set the write hex data address space
                     bootaddress_space = vector[vector_index];
                 }
                 else // program flash region
                 {
+                    // open hexx file read it line for line and extract the data according
+                    //  to the address, buffer offset is indexed by address
                     size = condition_hexfile_data(path, &bootinfo_t);
+
+                    // reset place holder
                     prg_ptr = prg_ptr_start;
-                    hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+
+                    // set how many iterations of 64byte packets to send over wire
+                    // if prg_byte_count % 64 > 0  then
+                    //     prg_byte_count / 64 + 1
+                    load_calc_result = ((prg_mem_count % MAX_INTERRUPT_OUT_TRANSFER_SIZE) > 0) ? 1 : 0;
+
+                    load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE) + load_calc_result;
+
+                    hex_load_limit = load_calc_result; // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     // calculate size of erasing preperation
-                    _blocks_temp = (float)size / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
+                    _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
                     fractional = modf(_blocks_temp, &integer);
                     _blocks_to_flash_ = (uint16_t)integer;
 
@@ -314,6 +336,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     if (fractional > 0.0)
                         _blocks_to_flash_++;
 
+                    printf("%u : %u : %d\n", prg_mem_count, load_calc_result, _blocks_to_flash_);
                     // erase at least 1 page if there are zero blocks to flash.
                     if (_blocks_to_flash_ == 0)
                         _blocks_to_flash_ = 1;
@@ -373,6 +396,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     size = bootinfo_t.uiWriteBlock.fValue.intVal; // 2048;
                 else if (vector_index == 1)
                     size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000;
+                else
+                    size = prg_mem_count;
 
                 hex_load_tracking = 0;
                 data_out[0] = 0x0f;
@@ -408,7 +433,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             case cmdREBOOT:
             {
                 _out_only = 2;
+
+#if DEBUG == 6
                 printf("%u : %u\n", prg_mem_count, conf_mem_count);
+#endif
+
                 // free memory created for flas_pointer
 
                 /*
