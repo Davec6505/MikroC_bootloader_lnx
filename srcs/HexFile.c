@@ -8,8 +8,17 @@
 #include "Types.h"
 #include "Utils.h"
 
+<<<<<<< HEAD
 // 1 = file size | 2 = address info | 3 = supply the path other than argument
 #define DEBUG 1
+=======
+// 1 = file size |
+// 2 = address info |
+// 3 = supply the path other than argument |
+// 4 = Report hex file size, Memory address allocation, transfer file size
+// 6 = print out hex address to ensure iteration is line for line ignoring report type 02 & 04, hex file byte totals
+#define DEBUG 0
+>>>>>>> patch1
 
 // boot loader 1st line
 const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70},
@@ -18,14 +27,22 @@ const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 const uint32_t _PIC32Mn_STARTCONF = 0x1FC00000;
 const uint32_t vector[] = {_PIC32Mn_STARTFLASH, _PIC32Mn_STARTFLASH, _PIC32Mn_STARTCONF};
-int vector_index = 0;
 
-// memory to hold flash data
-uint8_t *flash_ptr = NULL;
-uint8_t *flash_ptr_conf = 0;
-uint8_t *flash_ptr_start = NULL;
-uint32_t mem_created = 0;
+// memory to hold flash data and maintain initial pointers addresses
+uint8_t *prg_ptr = 0;
+uint8_t *prg_ptr_start = 0;
+uint8_t *conf_ptr = 0;
+uint8_t *conf_ptr_start = 0;
+
+// write program memor variable
 uint32_t bootaddress_space = 0;
+
+// keep track of how many bytes have been extracted form each line
+uint32_t prg_mem_count = 0;
+uint32_t conf_mem_count = 0;
+
+// iterate the vector array in state machine
+int vector_index = 0;
 
 void overwrite_bootflash_program(void);
 /*
@@ -37,6 +54,141 @@ void overwrite_bootflash_program(void);
  * Find the file to send
  */
 
+/***************************************************
+ * Open the hex file extract each line and iterate
+ * over the data from each line, the data is ASCII,
+ * conver each byte to its binary equivilant,
+ * Get the address MSW and LSW then use the address
+ * to place the data bytes at the index in the
+ * ram buffer, this way the file is only iterated
+ * through once.
+ * 2 buffers are used
+ *  1) program data,
+ *  2) configuration data
+ ***************************************************/
+uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
+{
+    uint32_t prg_mem_last = 0;
+    uint32_t conf_mem_last = 0;
+    uint32_t prg_byte_count = 0;
+    uint32_t con_byte_count = 0;
+    uint32_t count = 0;
+    uint32_t address = 0;
+    uint32_t root_address = 0;
+
+    int c_ = 0;
+    // temp buffers
+    uint8_t line[64] = {0};
+
+    // temp struct of type hex descriptors
+    _HEX_ hex = {0};
+
+    // get file size to allocate memory
+    FILE *fp = NULL;
+    if (fp == NULL)
+    {
+        fp = fopen(path, "r");
+        if (fp == NULL)
+        {
+            fprintf(stderr, "Could not find or open a file!!\n");
+            return 0;
+        }
+    }
+
+    // need the size ofthe file to allocate memory for linear buffer
+    uint32_t size = file_byte_count(fp);
+
+#if DEBUG == 4
+    printf("fc = %u\n", size);
+#endif
+
+    // allocate memory to prg_ptr to the size of chars in the file,
+    // this isn't quite correct as it will over allocate by the
+    // size of 12 bytes "[1][4][2][4]....[1]" I may want to save
+    // space later by using this value
+    prg_ptr = (uint8_t *)malloc(size + 1);
+    memset(prg_ptr, 0xff, size);
+    prg_ptr_start = prg_ptr;
+
+    // allocate memory for configuration data, use size for now,
+    // once I know how many bytes are allocated to configuration
+    // I can reduce this size.
+    conf_ptr = (uint8_t *)malloc(0xffff); // bootinfo->uiWriteBlock.fValue.intVal + 1);
+    memset(conf_ptr, 0xff, 0xffff);
+    conf_ptr_start = conf_ptr;
+
+    // make sure file starts from begining
+    fseek(fp, 0, SEEK_SET);
+
+    // rest the counters if they hold values?
+    prg_mem_count = conf_mem_count = 0;
+
+    // iterate through file line by line
+    while (c_ != EOF)
+    {
+        file_extract_line(fp, line, c_);
+
+        // extract byte count and address and report type
+        memcpy((uint8_t *)&hex, &line, sizeof(_HEX_));
+
+        hex.report.add_lsw = swap_wordbytes(hex.report.add_lsw);
+
+        // intel hex report type 02 and 04 are Address data types
+        if (hex.report.report == 0x02 | hex.report.report == 0x04)
+        {
+            hex.add_msw = swap_wordbytes(hex.add_msw);
+            root_address = transform_2words_long(hex.add_msw, hex.report.add_lsw);
+        }
+        else if (hex.report.report == 00)
+        {
+            address = root_address + hex.report.add_lsw;
+
+#if DEBUG == 6 // 6 to output memory address read from hex file
+            printf("%08x\n", address);
+#endif
+            if (address >= _PIC32Mn_STARTFLASH && address < _PIC32Mn_STARTCONF)
+            {
+                uint32_t temp_prg_add = (address - _PIC32Mn_STARTFLASH);
+                // prg_mem_count += (temp_prg_add - prg_mem_last); //
+                // prg_mem_last = temp_prg_add;
+                prg_mem_count += (uint32_t)hex.report.data_quant;
+                // printf("prg [%u]\n", prg_mem_count);
+
+                for (int k = 0; k < hex.report.data_quant; k++)
+                {
+                    *(prg_ptr + (temp_prg_add) + k) = line[k + sizeof(_HEX_REPORT_)];
+                }
+            }
+            else if (address >= _PIC32Mn_STARTCONF)
+            {
+                uint32_t temp_add = address - _PIC32Mn_STARTCONF;
+                // conf_mem_count += (uint32_t)hex.report.data_quant;
+                conf_mem_count += (temp_add - conf_mem_last);
+                conf_mem_last = temp_add;
+                // printf("conf [%u]\n", conf_mem_count);
+
+                for (int k = 0; k < hex.report.data_quant; k++)
+                {
+                    *(conf_ptr + (temp_add) + k) = line[k + sizeof(_HEX_REPORT_)];
+                }
+            }
+        }
+
+        if (hex.report.report == 0x01)
+            break;
+    }
+
+    return size;
+}
+
+/*
+ * Work engine of bootloader
+ *
+ * Args: usb_device_handle = from libusb device attach
+ *       path = the folder/file path of the hexfile to be loaded
+ *
+ * return: nothing
+ */
 void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 {
 
@@ -55,7 +207,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     TBootInfo bootinfo_t = {0};
 
     // hex loading
-    // uint16_t hex_load_percent = 0;
+    uint32_t load_calc_result = 0;
     uint16_t hex_load_limit = 0;
     uint16_t hex_load_tracking = 0;
     uint16_t hex_load_modulo = 0;
@@ -111,34 +263,24 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     data_out[i] = 0x0;
                 }
                 // start at address space 1d00
-                mem_created = vector_index = 0;
+                vector_index = 0;
             }
             break;
-            case cmdNON:
+            case cmdNON: // A wait state between commands
             {
                 // expect a data response back from device
                 _out_only = 0;
 
-                if (fp == NULL)
-                {
-                    fp = fopen(path, "r");
-                    if (fp == NULL)
-                    {
-                        fprintf(stderr, "Could not find or open a file!!\n");
-                        return;
-                    }
-                }
-                // make sure file starts from begining
-                fseek(fp, 0, SEEK_SET);
-
                 // handle address space from vector array, 1st 1d00 then 1fc0
-                if (vector_index == 1)
+                if (vector_index == 1) // boot startup page
                 {
-                    printf("%08x\n", vector[vector_index + 1]);
-                    size = locate_address_in_file(fp, vector_index + 1);
-                    flash_ptr = flash_ptr_start;
+
+                    prg_ptr = prg_ptr_start; // reset place holder
+
+                    // pre-condition the hex file for bootloading
                     overwrite_bootflash_program();
-                    flash_ptr = flash_ptr_start;
+
+                    prg_ptr = prg_ptr_start;                      // reset place holder
                     size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000
 
                     //  Work out the boot start vector for a sanity check, MikroC bootloader uses program flash
@@ -150,58 +292,88 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     hex_load_limit = bootinfo_t.uiEraseBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     _temp_flash_erase_ = (_boot_flash_start); //+ (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
-                    printf("%08x : %08x\n", _boot_flash_start, _temp_flash_erase_);
-                    _blocks_to_flash_ = 1;
 
+#if DEBUG == 4
+                    printf("%08x : %08x : %08x\n", vector[vector_index], _boot_flash_start, _temp_flash_erase_);
+#endif
+                    // pages to flash
+                    _blocks_to_flash_ = 1;
+                    // write hex data from address
                     bootaddress_space = _boot_flash_start;
                 }
-                else if (vector_index == 2)
+                else if (vector_index == 2) // config data
                 {
-                    size = locate_address_in_file(fp, vector_index);
-                    flash_ptr = flash_ptr_start;
-                    if (bootinfo_t.ulMcuSize.fValue == MZ2048)
-                        memcpy(flash_ptr, boot_line[0], sizeof(boot_line[0]));
-                    else
-                        memcpy(flash_ptr, boot_line[1], sizeof(boot_line[0]));
+                    // reset place holders to load from the begining
+                    prg_ptr = prg_ptr_start;
+                    conf_ptr = conf_ptr_start;
 
-                    hex_load_limit = 2048 / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-                    _temp_flash_erase_ = (vector[vector_index]); // + (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
+                    // offset decided on memory size of chip
+                    if (bootinfo_t.ulMcuSize.fValue == MZ2048)
+                        memcpy(conf_ptr, boot_line[0], sizeof(boot_line[0]));
+                    else
+                        memcpy(conf_ptr, boot_line[1], sizeof(boot_line[0]));
+
+                    // transfer the config data over to program flash data pointer
+                    memcpy(prg_ptr, conf_ptr, 0xffff); // bootinfo_t.uiWriteBlock.fValue.intVal);
+
+                    hex_load_limit = 0xffff / 64; // bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+
+                    // set the start address to flash erase
+                    _temp_flash_erase_ = (vector[vector_index]);
+
+                    // set erase block to 1 page of data
                     _blocks_to_flash_ = 1;
 
+                    // set the write hex data address space
                     bootaddress_space = vector[vector_index];
                 }
-                else
+                else // program flash region
                 {
-                    size = locate_address_in_file(fp, vector_index);
-                    flash_ptr = flash_ptr_start;
-                    hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-                    // erasing preperation
-                    _blocks_temp = (float)size / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
+                    // open hexx file read it line for line and extract the data according
+                    //  to the address, buffer offset is indexed by address
+                    size = condition_hexfile_data(path, &bootinfo_t);
+
+                    // reset place holder
+                    prg_ptr = prg_ptr_start;
+
+                    // set how many iterations of 64byte packets to send over wire
+                    // if prg_byte_count % 64 > 0  then
+                    //     prg_byte_count / 64 + 1
+                    load_calc_result = ((prg_mem_count % MAX_INTERRUPT_OUT_TRANSFER_SIZE) > 0) ? 1 : 0;
+
+                    load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE) + load_calc_result;
+
+                    hex_load_limit = load_calc_result; // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+
+                    // calculate size of erasing preperation
+                    _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
                     fractional = modf(_blocks_temp, &integer);
                     _blocks_to_flash_ = (uint16_t)integer;
 
+                    // if there is a decimal value add 1 block
                     if (fractional > 0.0)
-                    {
                         _blocks_to_flash_++;
-                    }
+
+                    printf("%u : %u : %d\n", prg_mem_count, load_calc_result, _blocks_to_flash_);
+                    // erase at least 1 page if there are zero blocks to flash.
                     if (_blocks_to_flash_ == 0)
-                    {
-                        // erase at least 1 page if there are zero blocks to flash.
                         _blocks_to_flash_ = 1;
-                    }
 
                     bootaddress_space = vector[vector_index];
 
                     _temp_flash_erase_ = (vector[vector_index]); // +
-                                                                 // (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
+                    // (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
                 }
 
+#if DEBUG == 4
                 printf("trnsfer size:= %d\n", size);
+#endif
+
                 if (size > 0)
                 {
                     trigger = 1;
                     // reset flash pointer to start
-                    flash_ptr = flash_ptr_start;
+                    prg_ptr = prg_ptr_start;
                 }
                 else
                 {
@@ -211,9 +383,9 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 
 #if DEBUG == 3
                 printf("vector indexed at [%02x]\n", vector_index);
-#endif
-
+#elif DEBUG == 4
                 printf("bootaddress_space [%08x]\tflash erase start [%08x]\tblock to flash [%04x]\n", bootaddress_space, _temp_flash_erase_, _blocks_to_flash_);
+#endif
             }
             break;
             case cmdERASE:
@@ -239,9 +411,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 _out_only = 1;
 
                 if (vector_index == 2)
-                    size = 2048;
+                    size = bootinfo_t.uiWriteBlock.fValue.intVal; // 2048;
                 else if (vector_index == 1)
-                    size = 0x4000;
+                    size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000;
+                else
+                    size = prg_mem_count;
 
                 hex_load_tracking = 0;
                 data_out[0] = 0x0f;
@@ -254,7 +428,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 }
 
                 // reset the pointer position
-                flash_ptr = flash_ptr_start;
+                prg_ptr = prg_ptr_start;
             }
             break;
             case cmdHEX:
@@ -263,8 +437,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 _out_only = 1;
 
                 hex_load_tracking++;
-                // use the flash buffer to stream 64 byte slices at a time
 
+                // use the flash buffer to stream 64 byte slices at a time
                 if (hex_load_tracking > hex_load_limit)
                 {
                     tcmd_t = cmdREBOOT;
@@ -277,7 +451,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             case cmdREBOOT:
             {
                 _out_only = 2;
-                printf("\n");
+
+#if DEBUG == 0
+                printf("%u : %u\n", prg_mem_count, conf_mem_count);
+#endif
+
                 // free memory created for flas_pointer
 
                 /*
@@ -289,9 +467,9 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 vector_index++;
                 if (vector_index > 2)
                 {
-                    if (flash_ptr != NULL)
+                    if (prg_ptr != NULL)
                     {
-                        flash_ptr = flash_ptr_start;
+                        prg_ptr = prg_ptr_start;
                         // free(flash_ptr);
                         // flash_ptr = flash_ptr_start = NULL;
                     }
@@ -299,7 +477,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     data_out[1] = (char)cmdREBOOT;
                     for (int i = 2; i < MAX_INTERRUPT_OUT_TRANSFER_SIZE; i++)
                     {
-                        flash_ptr = flash_ptr_start;
+                        // prg_ptr = prg_ptr_start;
                         data_out[i] = 0x0;
                     }
                 }
@@ -399,7 +577,7 @@ void load_hex_buffer(char *data, uint16_t iterable)
     uint32_t i = 0;
     for (i = 0; i < iterable; i++)
     {
-        *(data + i) = *(flash_ptr++);
+        *(data + i) = *(prg_ptr++);
 #if DEBUG == 3
         printf("%02x", *(data + i) & 0xff);
 #endif
@@ -410,6 +588,7 @@ void load_hex_buffer(char *data, uint16_t iterable)
 }
 
 /*
+<<<<<<< HEAD
  * @param FILE pointer t
  *
  * stips each line of the hex file into
@@ -573,6 +752,8 @@ uint32_t locate_address_in_file(FILE *fp, int index)
 }
 
 /*
+=======
+>>>>>>> patch1
  * Utils
  */
 
@@ -630,10 +811,10 @@ void overwrite_bootflash_program(void)
 {
     int i = 0;
     uint8_t line[16];
-    memcpy(line, flash_ptr, 16);
+    memcpy(line, conf_ptr, 16);
     for (i = 0; i < (0x4000 - 16); i++)
     {
-        *(flash_ptr++) = 0xff;
+        *(prg_ptr++) = 0xff;
     }
-    memcpy(flash_ptr, line, 16);
+    memcpy(prg_ptr, line, 16);
 }
