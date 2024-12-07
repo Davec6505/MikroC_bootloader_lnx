@@ -18,20 +18,25 @@ const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37
 const uint32_t _PIC32Mn_STARTFLASH = 0x1D000000;
 const uint32_t _PIC32Mn_STARTCONF = 0x1FC00000;
 const uint32_t vector[] = {_PIC32Mn_STARTFLASH, _PIC32Mn_STARTFLASH, _PIC32Mn_STARTCONF};
-int vector_index = 0;
 
-// memory to hold flash data
-uint8_t *flash_ptr = NULL;
-uint8_t *flash_ptr_conf = 0;
-uint8_t *flash_ptr_start = NULL;
-
+// memory to hold flash data and maintain initial pointers addresses
 uint8_t *prg_ptr = 0;
 uint8_t *prg_ptr_start = 0;
 uint8_t *conf_ptr = 0;
 uint8_t *conf_ptr_start = 0;
 
+uint8_t *flash_ptr = 0;
+uint8_t *flash_ptr_start = 0;
+
 uint32_t mem_created = 0;
 uint32_t bootaddress_space = 0;
+
+// keep track of how many bytes have been extracted form each line
+uint32_t prg_mem_count = 0;
+uint32_t conf_mem_count = 0;
+
+// iterate the vector array in state machine
+int vector_index = 0;
 
 void overwrite_bootflash_program(void);
 /*
@@ -86,7 +91,10 @@ uint32_t condition_hexfile_data(char *path, uint32_t mcu_size)
     uint32_t size = file_byte_count(fp);
     printf("fc = %u\n", size);
 
-    // allocate memory to program pointer for buffer
+    // allocate memory to prg_ptr to the size of chars in the file,
+    // this isn't quite correct as it will over allocate by the
+    // size of 12 bytes "[1][4][2][4]....[1]" I may want to save
+    // space later by using this value
     prg_ptr = (uint8_t *)malloc(size + 1);
     memset(prg_ptr, 0xff, size);
     prg_ptr_start = prg_ptr;
@@ -99,6 +107,9 @@ uint32_t condition_hexfile_data(char *path, uint32_t mcu_size)
 
     // make sure file starts from begining
     fseek(fp, 0, SEEK_SET);
+
+    // rest the counters if they hold values?
+    prg_mem_count = conf_mem_count = 0;
 
     // iterate through file line by line
     while (c_ != EOF)
@@ -121,16 +132,18 @@ uint32_t condition_hexfile_data(char *path, uint32_t mcu_size)
             printf("%08x\n", address);
             if (address >= _PIC32Mn_STARTFLASH && address < _PIC32Mn_STARTCONF)
             {
+                prg_mem_count += (uint32_t)hex.report.data_quant;
                 for (int k = 0; k < hex.report.data_quant; k++)
                 {
-                    *(prg_ptr + (address - _PIC32Mn_STARTFLASH)) = line[k + sizeof(_HEX_REPORT_)];
+                    *(prg_ptr + (address - _PIC32Mn_STARTFLASH) + k) = line[k + sizeof(_HEX_REPORT_)];
                 }
             }
             else if (address >= _PIC32Mn_STARTCONF)
             {
+                conf_mem_count += (uint32_t)hex.report.data_quant;
                 for (int k = 0; k < hex.report.data_quant; k++)
                 {
-                    *(conf_ptr + (address - _PIC32Mn_STARTCONF)) = line[k + sizeof(_HEX_REPORT_)];
+                    *(conf_ptr + (address - _PIC32Mn_STARTCONF) + k) = line[k + sizeof(_HEX_REPORT_)];
                 }
             }
         }
@@ -267,24 +280,23 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 }
                 else
                 {
-                    printf("??\n");
+
                     size = condition_hexfile_data(path, bootinfo_t.ulMcuSize.fValue);
-                    flash_ptr = flash_ptr_start;
+                    prg_ptr = prg_ptr_start;
                     hex_load_limit = size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-                    // erasing preperation
+
+                    // calculate size of erasing preperation
                     _blocks_temp = (float)size / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
                     fractional = modf(_blocks_temp, &integer);
                     _blocks_to_flash_ = (uint16_t)integer;
 
+                    // if there is a decimal value add 1 block
                     if (fractional > 0.0)
-                    {
                         _blocks_to_flash_++;
-                    }
+
+                    // erase at least 1 page if there are zero blocks to flash.
                     if (_blocks_to_flash_ == 0)
-                    {
-                        // erase at least 1 page if there are zero blocks to flash.
                         _blocks_to_flash_ = 1;
-                    }
 
                     bootaddress_space = vector[vector_index];
 
@@ -372,7 +384,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
             case cmdREBOOT:
             {
                 _out_only = 2;
-                printf("\n");
+                printf("%u : %u\n", prg_mem_count, conf_mem_count);
                 // free memory created for flas_pointer
 
                 /*
