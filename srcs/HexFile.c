@@ -306,7 +306,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     if (bootinfo_t.ulMcuSize.fValue == MZ2048)
                         memcpy(conf_ptr, boot_line[0], sizeof(boot_line[0]));
                     else
-                        memcpy(conf_ptr, boot_line[1], sizeof(boot_line[0]));
+                        memcpy(conf_ptr, boot_line[1], sizeof(boot_line[1]));
 
                     // transfer the config data over to program flash data pointer
                     memcpy(prg_ptr, conf_ptr, 0xffff); // bootinfo_t.uiWriteBlock.fValue.intVal);
@@ -336,6 +336,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     // set how many iterations of 64byte packets to send over wire
                     // if prg_byte_count % 64 > 0  then
                     //     prg_byte_count / 64 + 1
+                    prg_mem_count = 0x1000;
+
                     load_calc_result = ((prg_mem_count % MAX_INTERRUPT_OUT_TRANSFER_SIZE) > 0) ? 1 : 0;
 
                     load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE) + load_calc_result;
