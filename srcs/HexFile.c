@@ -13,7 +13,7 @@
 // 3 = supply the path other than argument |
 // 4 = Report hex file size, Memory address allocation, transfer file size
 // 6 = print out hex address to ensure iteration is line for line ignoring report type 02 & 04, hex file byte totals
-#define DEBUG 0
+#define DEBUG 2
 
 // boot loader 1st line
 const uint8_t boot_line[][16] = {{0x1F, 0xBD, 0x1E, 0x3C, 0x00, 0x40, 0xDE, 0x37, 0x08, 0x00, 0xC0, 0x03, 0x00, 0x00, 0x00, 0x70},
@@ -157,9 +157,9 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
             else if (address >= _PIC32Mn_STARTCONF)
             {
                 uint32_t temp_add = address - _PIC32Mn_STARTCONF;
-                // conf_mem_count += (uint32_t)hex.report.data_quant;
-                conf_mem_count += (temp_add - conf_mem_last);
-                conf_mem_last = temp_add;
+                conf_mem_count += (uint32_t)hex.report.data_quant;
+                // conf_mem_count += (temp_add - conf_mem_last);
+                // conf_mem_last = temp_add;
                 // printf("conf [%u]\n", conf_mem_count);
 
                 for (int k = 0; k < hex.report.data_quant; k++)
@@ -284,11 +284,11 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     _boot_flash_start -= bootinfo_t.uiEraseBlock.fValue.intVal;
 
                     // erase a whole page 0x4000 for configuration vector
-                    hex_load_limit = bootinfo_t.uiEraseBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    hex_load_limit = (bootinfo_t.uiEraseBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE) - 1;
 
                     _temp_flash_erase_ = (_boot_flash_start); //+ (uint32_t)(1 * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1;
 
-#if DEBUG == 4
+#if DEBUG == 2
                     printf("%08x : %08x : %08x\n", vector[vector_index], _boot_flash_start, _temp_flash_erase_);
 #endif
                     // pages to flash
@@ -311,12 +311,14 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     // transfer the config data over to program flash data pointer
                     memcpy(prg_ptr, conf_ptr, 0xffff); // bootinfo_t.uiWriteBlock.fValue.intVal);
 
-                    hex_load_limit = 0xffff / 64; // bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    // hex_load_limit = (0xffff + 1) / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    hex_load_limit = (bootinfo_t.uiWriteBlock.fValue.intVal / MAX_INTERRUPT_OUT_TRANSFER_SIZE) - 1;
 
                     // set the start address to flash erase
                     _temp_flash_erase_ = (vector[vector_index]);
 
-                    // set erase block to 1 page of data
+                    // set erase block to multiple pages of data [1page = 0x4000 for mz]
+                    //_blocks_to_flash_ = (0xffff + 1) / 0x4000;
                     _blocks_to_flash_ = 1;
 
                     // set the write hex data address space
@@ -338,7 +340,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
 
                     load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE) + load_calc_result;
 
-                    hex_load_limit = load_calc_result; // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    hex_load_limit = load_calc_result - 1; // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     // calculate size of erasing preperation
                     _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;

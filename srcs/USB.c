@@ -14,7 +14,7 @@
 #include "HexFile.h"
 
 // 1 = print out info relating to usb transfers
-#define DEBUG 0
+#define DEBUG 1
 
 static const int CONTROL_REQUEST_TYPE_IN = LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE;
 static const int CONTROL_REQUEST_TYPE_OUT = LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE;
@@ -57,7 +57,7 @@ int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *da
     if (result >= 0 | out_only == 1)
     {
 #if DEBUG == 1
-        printf("Data sent via interrupt transfer:\n");
+        //  printf("Data sent via interrupt transfer:\n");
         for (i = 0; i < bytes_transferred; i++)
         {
             printf("%02x ", data_out[i] & 0xff);
@@ -83,7 +83,7 @@ int boot_interrupt_transfers(libusb_device_handle *devh, char *data_in, char *da
             if (bytes_transferred > 0)
             {
 #if DEBUG == 1
-                printf("Data received via interrupt transfer:\n");
+                // printf("Data received via interrupt transfer:\n");
                 for (i = 0; i < bytes_transferred; i++)
                 {
                     printf("%02x ", data_in[i] & 0xff);
