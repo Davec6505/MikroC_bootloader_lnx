@@ -191,13 +191,14 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     static int8_t trigger = 0;
     int16_t result = 0;
     uint8_t _out_only = 0;
+
     // flash size
     uint32_t size = 0;
     uint32_t _temp_flash_erase_ = 0;
     uint32_t _boot_flash_start = 0;
 
     uint16_t _blocks_to_flash_ = 0, modulo = 0; //(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
-    double _blocks_temp = 0.0, fractional = 0.0, integer = 0.0;
+    double _blocks_temp = 0.0, fractional = 0.0, integer = 0.0, _write_row_error = 0.0;
     TCmd tcmd_t = cmdINFO;
     TBootInfo bootinfo_t = {0};
 
@@ -334,15 +335,18 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     prg_ptr = prg_ptr_start;
 
                     // set how many iterations of 64byte packets to send over wire
-                    // if prg_byte_count % 64 > 0  then
-                    //     prg_byte_count / 64 + 1
-                    prg_mem_count = 0x1000;
+                    _write_row_error = (double)prg_mem_count / (double)bootinfo_t.uiWriteBlock.fValue.intVal;
+                    fractional = modf(_write_row_error, &integer);
+                    load_calc_result = (fractional > 0.0) ? 1 : 0;
+                    load_calc_result += (uint32_t)integer;
+                    prg_mem_count = bootinfo_t.uiWriteBlock.fValue.intVal * load_calc_result;
 
-                    load_calc_result = ((prg_mem_count % MAX_INTERRUPT_OUT_TRANSFER_SIZE) > 0) ? 1 : 0;
+#if DEBUG == 2
+                    printf("[%02f] [%02f] [%u] [%u]\n", _write_row_error, integer, load_calc_result, prg_mem_count);
+#endif
 
-                    load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE) + load_calc_result;
-
-                    hex_load_limit = load_calc_result - 1; // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE); // + load_calc_result;
+                    hex_load_limit = load_calc_result - 1;                                // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
                     // calculate size of erasing preperation
                     _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
