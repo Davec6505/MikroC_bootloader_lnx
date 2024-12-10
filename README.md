@@ -18,13 +18,13 @@ References taken for this project include:
  : [Wiki ](https://en.wikipedia.org/wiki/Intel_HEX).
  : MikroC Pro bootloader firmware writen for pic32mz source code.
 
- This code is written on a Fedora40 distro in C for pic32mz devices programed with
+ This code is written on a Fedora41 distro in C for pic32mz devices programed with
  MPLABX or MikroC. I'm sure with a little tweeking it will work with other devices.
 
  Any usage of MikroC's bootloader will not overwrite certian flashed config memory locations
  on the chip, this means that your project must match bootloaders configuration switches.
 
- To understand bootloaders Microchip have excelent documentation on their bootloader firmware
+ To understand bootloaders Microchip has excelent documentation on their bootloader firmware
  for Harmony, it is imperative that this is read before trying to understand firmware loading
  without a programmer.
 
@@ -42,6 +42,10 @@ References taken for this project include:
     hex files 1st 16 bytes of the Config section at vector 1fc00000 and these 16
     bytes must be replaced by the bootloaders 16 bytes at address 1fc00000.
     For now these are hard coded into the application.
+  : The Program Flash memory has to be multiples of Row count for devices with
+    ECC "error correction control" this is MCU specific, most mz chips incorperate
+    ECC.
+  
     
 
 
@@ -256,13 +260,19 @@ following record.
 //                            CODE AS IT STANDS                          //
 ///////////////////////////////////////////////////////////////////////////
 
-In it current state this code is not very efficient, it take time to 
-Linearize the address portions of the hex file, it does this in 3 stages,
- :Looks for the report type 04 and Extended arrdess of 1d00 and address
-  of 0000 += 2 on each iteration.
-  each iteration look for the next match post incrament, need to figure
-  out if there is a more efficient way of doing this.
- :On response from chip it uses memory size to determine the last 16bytes
+In it current state this code is very efficient.
+: The sequence is as follows,
+  1) Condition the data array from hex file.
+  2) Program Flash loaded first, quantity must be multiples of Row size,
+     MCU specific, which is sent down from on chip firmware.
+  3) Program BootStart up code.
+  4) Program Config program
+   
+: The code iterates through each line of the hex file and uses the address
+  LSW to offset the data array, it then uses the data quantity to load
+  the hex value by iterating through each item in the row.
+  
+:On response from chip it uses memory size to determine the last 16bytes
   of the last page for the start up vector jump.
 
 
@@ -275,3 +285,5 @@ Linearize the address portions of the hex file, it does this in 3 stages,
     Address encountered in the hex file offsets the 
     data position within the data array.
  
+ :Understanding how to flash large programs? must they be
+  page allocated / mcu told that a new page is on its way?
