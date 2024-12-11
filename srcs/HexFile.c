@@ -101,8 +101,8 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
     // this isn't quite correct as it will over allocate by the
     // size of 12 bytes "[1][4][2][4]....[1]" I may want to save
     // space later by using this value
-    prg_ptr = (uint8_t *)malloc(size + 1);
-    memset(prg_ptr, 0xff, size);
+    prg_ptr = (uint8_t *)malloc(bootinfo->ulMcuSize.fValue);
+    memset(prg_ptr, 0xff, bootinfo->ulMcuSize.fValue);
     prg_ptr_start = prg_ptr;
 
     // allocate memory for configuration data, use size for now,
@@ -144,12 +144,14 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
             if (address >= _PIC32Mn_STARTFLASH && address < _PIC32Mn_STARTCONF)
             {
                 uint32_t temp_prg_add = (address - _PIC32Mn_STARTFLASH);
-                // prg_mem_count += (temp_prg_add - prg_mem_last); //
-                // prg_mem_last = temp_prg_add;
-                prg_mem_count += (uint32_t)hex.report.data_quant;
-                // printf("prg [%u]\n", prg_mem_count);
+                prg_byte_count = temp_prg_add - prg_mem_last;
+                prg_mem_count += prg_byte_count;
+                prg_mem_last = temp_prg_add;
+                prg_byte_count = (prg_byte_count == 0) ? (uint32_t)hex.report.data_quant : prg_byte_count;
+                printf("prg [%08x] : [%u]\n", temp_prg_add, prg_mem_count);
 
-                for (int k = 0; k < hex.report.data_quant; k++)
+                for (uint32_t k = 0; k < prg_byte_count; k++)
+                //  for (int k = 0; k < hex.report.data_quant; k++)
                 {
                     *(prg_ptr + (temp_prg_add) + k) = line[k + sizeof(_HEX_REPORT_)];
                 }
@@ -207,6 +209,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     uint16_t hex_load_limit = 0;
     uint16_t hex_load_tracking = 0;
     uint16_t hex_load_modulo = 0;
+    uint32_t hex_load_page_tracking = 0;
 
     // file handling
     FILE *fp = NULL;
@@ -334,7 +337,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     // reset place holder
                     prg_ptr = prg_ptr_start;
 
-                    // set how many iterations of 64byte packets to send over wire
+                    // set how many iterations of 64byte packets to send over wire with row boundry
                     _write_row_error = (double)prg_mem_count / (double)bootinfo_t.uiWriteBlock.fValue.intVal;
                     fractional = modf(_write_row_error, &integer);
                     load_calc_result = (fractional > 0.0) ? 1 : 0;
@@ -348,6 +351,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE); // + load_calc_result;
                     hex_load_limit = load_calc_result - 1;                                // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
 
+                    // hex page tracking works out how many pages will be loaded into PFM 1 page at a time
+                    // bootload firmware has 16bit int so can't load more than 0x8000 bytes at a time
                     // calculate size of erasing preperation
                     _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
                     fractional = modf(_blocks_temp, &integer);
