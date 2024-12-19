@@ -40,6 +40,8 @@ uint32_t conf_mem_count = 0;
 int vector_index = 0;
 
 void overwrite_bootflash_program(void);
+uint32_t page_iteration_calc(uint16_t row_page_size, uint32_t mem_quantity);
+
 /*
  * To get chip into bootloader mode to usb needs to interrupt transfer a sequence of packets
  * Packet A : send [STX][cmdSYNC]
@@ -198,6 +200,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
     uint32_t size = 0;
     uint32_t _temp_flash_erase_ = 0;
     uint32_t _boot_flash_start = 0;
+    uint32_t _pages_to_flash = 0;
+    uint32_t _page_tracking = 0;
 
     uint16_t _blocks_to_flash_ = 0, modulo = 0; //(uint32_t)(size / bootinfo_t.ulMcuSize.fValue);
     double _blocks_temp = 0.0, fractional = 0.0, integer = 0.0, _write_row_error = 0.0;
@@ -337,40 +341,44 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                     // reset place holder
                     prg_ptr = prg_ptr_start;
 
-                    // set how many iterations of 64byte packets to send over wire with row boundry
-                    _write_row_error = (double)prg_mem_count / (double)bootinfo_t.uiWriteBlock.fValue.intVal;
-                    fractional = modf(_write_row_error, &integer);
-                    load_calc_result = (fractional > 0.0) ? 1 : 0;
-                    load_calc_result += (uint32_t)integer;
-                    prg_mem_count = bootinfo_t.uiWriteBlock.fValue.intVal * load_calc_result;
-
-#if DEBUG == 2
-                    printf("[%02f] [%02f] [%u] [%u]\n", _write_row_error, integer, load_calc_result, prg_mem_count);
-#endif
-
-                    load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE); // + load_calc_result;
-                    hex_load_limit = load_calc_result - 1;                                // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
-
                     // hex page tracking works out how many pages will be loaded into PFM 1 page at a time
                     // bootload firmware has 16bit int so can't load more than 0x8000 bytes at a time
                     // calculate size of erasing preperation
-                    _blocks_temp = (float)prg_mem_count / (float)bootinfo_t.uiEraseBlock.fValue.intVal;
-                    fractional = modf(_blocks_temp, &integer);
-                    _blocks_to_flash_ = (uint16_t)integer;
+                    _pages_to_flash = page_iteration_calc(bootinfo_t.uiEraseBlock.fValue.intVal, prg_mem_count);
 
-                    // if there is a decimal value add 1 block
-                    if (fractional > 0.0)
-                        _blocks_to_flash_++;
+                    // set how many iterations of 64byte packets to send over wire with row boundry
+                    //_write_row_error = (double)prg_mem_count / (double)bootinfo_t.uiWriteBlock.fValue.intVal;
+                    // fractional = modf(_write_row_error, &integer);
+                    // load_calc_result = (fractional > 0.0) ? 1 : 0;
+                    // load_calc_result += (uint32_t)integer;
+                    if (_pages_to_flash == 1)
+                    {
+                        load_calc_result = page_iteration_calc(bootinfo_t.uiWriteBlock.fValue.intVal, prg_mem_count);
+                        prg_mem_count = bootinfo_t.uiWriteBlock.fValue.intVal * load_calc_result;
 
-                    printf("%u : %u : %d\n", prg_mem_count, load_calc_result, _blocks_to_flash_);
+                        load_calc_result = (prg_mem_count / MAX_INTERRUPT_OUT_TRANSFER_SIZE); // + load_calc_result;
+                        hex_load_limit = load_calc_result - 1;                                // size / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+#if DEBUG == 2
+                        printf("[%u] : [%02f] [%02f] [%u] [%u]\n", _pages_to_flash, _write_row_error, integer, load_calc_result, prg_mem_count);
+#endif
+                    }
+                    else
+                    {
+                        // load the full page into the chip
+                        hex_load_limit = (bootinfo_t.uiEraseBlock.fValue.intVal - MAX_INTERRUPT_OUT_TRANSFER_SIZE) / MAX_INTERRUPT_OUT_TRANSFER_SIZE;
+                    }
+
+                    printf("%u : %u : %u : %d\n", _pages_to_flash, prg_mem_count, load_calc_result, _blocks_to_flash_);
+
                     // erase at least 1 page if there are zero blocks to flash.
+                    _blocks_to_flash_ = _pages_to_flash;
                     if (_blocks_to_flash_ == 0)
                         _blocks_to_flash_ = 1;
 
+                    _page_tracking = 0;
                     bootaddress_space = vector[vector_index];
 
-                    _temp_flash_erase_ = (vector[vector_index]); // +
-                    // (uint32_t)((_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal)) - 1);
+                    _temp_flash_erase_ = (vector[vector_index]) + (uint32_t)(_blocks_to_flash_ * bootinfo_t.uiEraseBlock.fValue.intVal);
                 }
 
 #if DEBUG == 4
@@ -423,7 +431,16 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 else if (vector_index == 1)
                     size = bootinfo_t.uiEraseBlock.fValue.intVal; // 0x4000;
                 else
-                    size = prg_mem_count;
+                {
+                    if (_pages_to_flash <= 1)
+                        size = prg_mem_count;
+                    else
+                    {
+                        size = bootinfo_t.uiEraseBlock.fValue.intVal;
+                        if (_page_tracking > 0)
+                            bootaddress_space += (bootinfo_t.uiEraseBlock.fValue.intVal);
+                    }
+                }
 
                 hex_load_tracking = 0;
                 data_out[0] = 0x0f;
@@ -436,7 +453,8 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 }
 
                 // reset the pointer position
-                prg_ptr = prg_ptr_start;
+                if (_page_tracking == 0)
+                    prg_ptr = prg_ptr_start;
             }
             break;
             case cmdHEX:
@@ -449,7 +467,13 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 // use the flash buffer to stream 64 byte slices at a time
                 if (hex_load_tracking > hex_load_limit)
                 {
-                    tcmd_t = cmdREBOOT;
+                    if (_page_tracking > _pages_to_flash)
+                        tcmd_t = cmdREBOOT;
+                    else
+                    {
+                        tcmd_t = cmdERASE;
+                        _page_tracking++;
+                    }
                     _out_only = 0;
                 }
 
@@ -546,6 +570,7 @@ void setupChiptoBoot(struct libusb_device_handle *devh, char *path)
                 printf("HEX\n");
                 break;
             case cmdHEX:
+
                 break;
             case cmdREBOOT:
                 break;
@@ -659,4 +684,16 @@ void overwrite_bootflash_program(void)
         *(prg_ptr++) = 0xff;
     }
     memcpy(prg_ptr, line, 16);
+}
+
+uint32_t page_iteration_calc(uint16_t row_page_size, uint32_t mem_quantity)
+{
+    double tempA, fractional, integer;
+    uint32_t result = 0;
+    tempA = (double)mem_quantity / (double)row_page_size;
+    fractional = modf(tempA, &integer);
+    result = (fractional > 0.0) ? 1 : 0;
+    result += (uint32_t)integer;
+
+    return result;
 }
