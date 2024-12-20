@@ -149,7 +149,8 @@ uint32_t condition_hexfile_data(char *path, TBootInfo *bootinfo)
                 prg_byte_count = temp_prg_add - prg_mem_last;
                 prg_mem_count += prg_byte_count;
                 prg_mem_last = temp_prg_add;
-                prg_byte_count = (prg_byte_count == 0) ? (uint32_t)hex.report.data_quant : prg_byte_count;
+                //  prg_byte_count = (prg_byte_count == 0) ? (uint32_t)hex.report.data_quant : prg_byte_count;
+                prg_byte_count = (uint32_t)hex.report.data_quant;
                 printf("prg [%08x] : [%u]\n", temp_prg_add, prg_mem_count);
 
                 for (uint32_t k = 0; k < prg_byte_count; k++)
